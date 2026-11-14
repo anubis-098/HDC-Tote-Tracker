@@ -1,0 +1,67 @@
+name: hdc-tote-tracker
+services:
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports: ["8081:80"]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      api: {condition: service_healthy}
+  api:
+    build: ./backend
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD}
+      IMAGE_DB_PASSWORD: ${IMAGE_DB_PASSWORD:?Set IMAGE_DB_PASSWORD}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    depends_on:
+      postgres-app: {condition: service_healthy}
+      postgres-images: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/ready', timeout=5)"]
+      interval: 10s
+      timeout: 8s
+      start_period: 30s
+      retries: 5
+  postgres-app:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tote_app
+      POSTGRES_USER: tote
+      POSTGRES_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD}
+    volumes:
+      - type: bind
+        source: ${APP_DATA_PATH:-D:/HDC-Data/HDC-Tote-Tracker-data/postgres-app}
+        target: /var/lib/postgresql/data
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U tote -d tote_app"]
+      interval: 5s
+      start_period: 120s
+      retries: 10
+  postgres-images:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tote_images
+      POSTGRES_USER: images
+      POSTGRES_PASSWORD: ${IMAGE_DB_PASSWORD:?Set IMAGE_DB_PASSWORD}
+    volumes:
+      - type: bind
+        source: ${IMAGE_DATA_PATH:-D:/HDC-Data/HDC-Tote-Tracker-data/postgres-images}
+        target: /var/lib/postgresql/data
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U images -d tote_images"]
+      interval: 5s
+      start_period: 120s
+      retries: 10

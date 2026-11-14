@@ -1,0 +1,164 @@
+import { useEffect, useRef, useState } from 'react';
+import { Link, useBeforeUnload, useNavigate, useSearchParams } from 'react-router-dom';
+import { ScanLine, Camera, History, Package, ArrowRight, CheckCircle2, Trash2, RefreshCw } from 'lucide-react';
+import { PhotoViewer } from '../components/PhotoViewer';
+import { UsageGuide } from '../components/UsageGuide';
+import { api, ApiError, message, requestId, statusLabel, actionLabel, dateTime, type Tote, type Store, type Identity, type Action } from '../lib/api';
+
+interface Review { code: string; action: Action; expected_version: number; store_code?: string; note: string; request_id: string; destination: string }
+export function ScanPage() {
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const initial = useRef(params.get('code') || '');
+  const input = useRef<HTMLInputElement>(null);
+  const reviewDialog = useRef<HTMLDialogElement>(null);
+  const focusAfterReset = useRef(false);
+  const cameraInput = useRef<HTMLInputElement>(null);
+  const [identity, setIdentity] = useState<Identity | null>(null);
+  const [code, setCode] = useState(initial.current);
+  const [tote, setTote] = useState<Tote | null>(null);
+  const [unknown, setUnknown] = useState('');
+  const [stores, setStores] = useState<Store[]>([]);
+  const [store, setStore] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [review, setReview] = useState<Review | null>(null);
+  const [photoUrl, setPhotoUrl] = useState('');
+  const scanning = useRef(false);
+  const displayedCodeMatches = !tote || code.trim().toUpperCase() === tote.code;
+  const editingDisabled = busy || !displayedCodeMatches;
+  const latestReset = tote?.history.find(event => event.action === 'RESET');
+  const hasPreviousPhotos = !!latestReset && !!tote?.photos.some(photo => Date.parse(photo.uploaded_at) < Date.parse(latestReset.created_at));
+  useBeforeUnload(event => { if (busy || store || note.trim()) { event.preventDefault(); event.returnValue = ''; } });
+  useEffect(() => {
+    const protectDraft = (event: MouseEvent) => {
+      const link = (event.target as Element).closest?.('a[href]') as HTMLAnchorElement | null;
+      if (!link || link.href === window.location.href) return;
+      if (busy || ((store || note.trim()) && !window.confirm('มีข้อมูลที่ยังไม่ยืนยัน ต้องการออกจากหน้านี้หรือไม่?'))) { event.preventDefault(); event.stopPropagation(); }
+    };
+    document.addEventListener('click', protectDraft, true);
+    return () => document.removeEventListener('click', protectDraft, true);
+  }, [busy, store, note]);
+  useEffect(() => {
+    let active = true;
+    api<Identity>('/worker/me').then(user => {
+      if (!active) return;
+      setIdentity(user);
+      if (initial.current) void lookup(initial.current);
+      else input.current?.focus();
+    }).catch(error => { if (!active) return; if (error instanceof ApiError && error.status === 401) navigate('/'); else setError(message(error)); });
+    api<Store[]>('/stores').then(rows => { if (active) setStores(rows); }).catch(error => { if (active) setError(message(error)); });
+    return () => { active = false; };
+  }, []);
+  useEffect(() => { if (review) reviewDialog.current?.showModal(); else reviewDialog.current?.close(); }, [review]);
+  useEffect(() => {
+    if (focusAfterReset.current && !busy && !tote && !review) {
+      focusAfterReset.current = false; input.current?.focus(); window.scrollTo({ top: 0 });
+    }
+  }, [busy, tote, review]);
+  function resetScan(notice = '') {
+    setTote(null); setCode(''); setUnknown(''); setStore(''); setNote(''); setReview(null); setPhotoUrl('');
+    setSuccess(notice); setError(''); setParams({}, { replace: true }); initial.current = ''; focusAfterReset.current = true;
+  }
+  async function lookup(raw: string) {
+    if (scanning.current) return;
+    const value = raw.trim().toUpperCase();
+    if (!/^HDC\d+$/.test(value) || value.length > 100) { setError('รหัส Tote ต้องเป็น HDC ตามด้วยตัวเลข เช่น HDC1 หรือ HDC000001 (รวมไม่เกิน 100 ตัวอักษร)'); return; }
+    if (tote && (store || note.trim()) && !window.confirm('การค้นหาหรือโหลดใหม่จะล้างข้อมูลที่ยังไม่ยืนยัน ต้องการดำเนินการต่อหรือไม่?')) return;
+    scanning.current = true; setBusy(true); setError(''); setSuccess(''); setUnknown(''); setTote(null); setStore(''); setNote(''); setCode(value);
+    try { setTote(await api<Tote>('/totes/' + value)); setParams({ code: value }, { replace: true }); }
+    catch (error) { if (error instanceof ApiError && error.status === 404) setUnknown(value); else setError(message(error)); }
+    finally { setBusy(false); scanning.current = false; }
+  }
+  async function register() {
+    setBusy(true); setError('');
+    try { const result = await api<Tote>('/totes', { method: 'POST', body: JSON.stringify({ code: unknown }) }); setTote(result); setUnknown(''); setParams({ code: result.code }, { replace: true }); setSuccess('ลงทะเบียน Tote เรียบร้อยแล้ว'); }
+    catch (error) { setError(message(error)); } finally { setBusy(false); }
+  }
+  function prepare() {
+    if (!tote || !displayedCodeMatches) return;
+    const action: Action = tote.status === 'READY' ? 'DISPATCH' : tote.status === 'AT_STORE' ? 'RETURN' : 'RESET';
+    const selected = stores.find(item => item.code === store);
+    if (action === 'DISPATCH' && !selected) { setError('กรุณาเลือก Store ปลายทาง'); return; }
+    setError('');
+    setReview({ code: tote.code, action, expected_version: tote.version, store_code: action === 'DISPATCH' ? store : undefined, note: note.trim(), request_id: requestId(), destination: selected ? `${selected.code} · ${selected.name}` : `${tote.store_code} · ${tote.store_name}` });
+  }
+  async function confirm() {
+    if (!review || busy) return;
+    setBusy(true); setError(''); setSuccess('');
+    try {
+      const { code, destination: _, ...body } = review;
+      const result = await api<Tote>(`/totes/${code}/transitions`, { method: 'POST', body: JSON.stringify(body) });
+      if (body.action === 'DISPATCH') resetScan(`บันทึกแล้ว · ส่งไป Store · ${code} พร้อมสแกนกล่องถัดไป`);
+      else { setTote(result); setReview(null); setStore(''); setNote(''); setSuccess('บันทึกแล้ว · ' + statusLabel[result.status]); }
+    } catch (error) { setError(message(error)); } finally { setBusy(false); }
+  }
+  async function upload(slot: number, file?: File) {
+    if (!file || !tote || editingDisabled) return;
+    if (file.size > 8 * 1024 * 1024) { setError('ไฟล์ภาพต้องไม่เกิน 8 MB'); return; }
+    setBusy(true); setError(''); setSuccess('');
+    try {
+      const form = new FormData(); form.append('file', file);
+      await api(`/totes/${tote.code}/photos/${slot}?expected_version=${tote.version}`, { method: 'PUT', body: form });
+      setTote(await api<Tote>('/totes/' + tote.code)); setSuccess('บันทึกรูปภาพแล้ว');
+    } catch (error) {
+      setError(message(error));
+      if (error instanceof ApiError && error.status === 409) setTote(await api<Tote>('/totes/' + tote.code).catch(() => tote));
+    } finally { setBusy(false); }
+  }
+  async function remove(slot: number) {
+    if (!tote || editingDisabled || !window.confirm(`ลบรูปช่อง ${slot} ของ ${tote.code}?`)) return;
+    setBusy(true); setError(''); setSuccess('');
+    try { await api(`/totes/${tote.code}/photos/${slot}?expected_version=${tote.version}&expected_photo_id=${tote.photos.find(photo => photo.slot === slot)?.id}`, { method: 'DELETE' }); setTote(await api<Tote>('/totes/' + tote.code)); }
+    catch (error) {
+      setError(message(error));
+      if (error instanceof ApiError && error.status === 409) setTote(await api<Tote>('/totes/' + tote.code).catch(() => tote));
+    } finally { setBusy(false); }
+  }
+  return <>
+    <div className="page-title"><div><span className="eyebrow">SCAN & TRACK</span><h1>สแกนกล่อง Tote</h1></div><ScanLine size={30} /></div>
+    <div className="operator"><span>ผู้ปฏิบัติงาน: {identity?.name || 'กำลังเชื่อมต่อ…'}</span><Link to="/">เปลี่ยนชื่อ</Link></div>
+    <form className="panel form" onSubmit={event => { event.preventDefault(); void lookup(code); }}>
+      <label htmlFor="tote-code">QR Code / หมายเลข Tote</label><div className="scan-input"><ScanLine size={22} /><input ref={input} id="tote-code" required autoComplete="off" autoCapitalize="characters" spellCheck={false} enterKeyHint="search" value={code} placeholder="HDC000001" maxLength={100} disabled={busy || !identity} onFocus={e => e.target.select()} onChange={e => setCode(e.target.value)} /><button className="primary" disabled={busy || !identity} aria-label="ค้นหา Tote"><ArrowRight size={22} /></button></div>
+      <small>ยิง QR ด้วยเครื่องสแกน หรือกรอกเลขแล้วกด Enter</small>
+    </form>
+    <UsageGuide />
+    {!displayedCodeMatches && <div className="notice draft-warning" role="status">หมายเลขในช่องเปลี่ยนแล้ว กรุณากดค้นหาหรือ Enter ก่อนปรับสถานะกล่อง</div>}
+    {busy && <p className="notice" role="status">กำลังดำเนินการ…</p>}
+    {error && !review && <div role="alert" className="error space">{error}</div>}
+    {success && <div role="status" className="success space"><CheckCircle2 size={18} />{success}</div>}
+    {unknown && <section className="panel form"><h2><Package size={20} />พบรหัสใหม่: {unknown}</h2><p>ยังไม่มี Tote นี้ในระบบ ลงทะเบียนเพื่อเริ่มติดตาม</p><button className="primary" disabled={busy} onClick={register}>ลงทะเบียน Tote นี้</button></section>}
+    {!tote && !unknown && <div className="empty"><ScanLine size={48} /><h2>พร้อมรับการสแกน</h2><p>สถานะ Store ปลายทาง และประวัติ<br />จะแสดงหลังสแกนกล่อง</p></div>}
+    {tote && <>
+      <section className="panel tote-card"><div className="row"><span className="eyebrow">TOTE NUMBER</span><span className={'badge ' + tote.status}>{statusLabel[tote.status]}</span></div><h2 className="tote-code">{tote.code}</h2>
+        <div className="destination"><small>{tote.status === 'RETURNED' ? 'รับกลับจาก Store' : 'Store ปัจจุบัน'}</small><b>{tote.store_code ? `${tote.store_code} · ${tote.store_name}` : 'อยู่ที่ HDC · พร้อมส่งรอบใหม่'}</b></div>
+        <small>อัปเดต {dateTime(tote.updated_at)}</small><button className="text-button" disabled={busy} onClick={() => lookup(tote.code)}><RefreshCw size={15} />โหลดข้อมูลใหม่</button>
+      </section>
+      <section className="panel form"><h2><Package size={20} />ปรับสถานะ Tote</h2>
+        {tote.status === 'READY' ? <label>Store ปลายทาง<select required disabled={busy} value={store} onChange={e => setStore(e.target.value)}><option value="">เลือก Store ที่จะส่ง</option>{stores.map(item => <option key={item.code} value={item.code}>{item.code} · {item.name}</option>)}</select>{!stores.length && <small>ยังไม่มี Store เปิดใช้งาน ให้ผู้ดูแลเพิ่ม Store ก่อน</small>}</label>
+          : <div className="notice">{tote.status === 'AT_STORE' ? 'ตรวจสอบ Store เดิม แล้วกดยืนยันเมื่อได้รับกล่องกลับถึง HDC' : 'ล้าง Store ปัจจุบันเพื่อเริ่มรอบใหม่ ประวัติและรูปจะยังคงอยู่'}</div>}
+        <label>หมายเหตุ (ไม่บังคับ)<textarea rows={2} maxLength={500} disabled={busy} placeholder="เช่น สภาพกล่อง / รายละเอียดเพิ่มเติม" value={note} onChange={e => setNote(e.target.value)} /></label>
+      </section>
+      <section className="panel"><div className="row"><h2><Camera size={20} />ภาพสินค้าใน Tote</h2><b className="counter">{tote.photos.length} / 6</b></div><p className="hint">{tote.status === 'READY' ? 'รูปบันทึกทันที · สูงสุด 6 รูป · แตะรูปเพื่อดูขนาดใหญ่' : 'ดูรูปได้ · จัดการรูปได้เมื่อ Tote พร้อมใช้'}</p>
+        {tote.status === 'READY' && hasPreviousPhotos && <div className="notice">มีภาพจากรอบก่อนอยู่ กรุณาตรวจสอบและลบภาพเก่าก่อนถ่ายชุดใหม่ ภาพที่เหลือจะใช้กับรอบนี้ด้วย</div>}
+        <button className="camera-button" disabled={editingDisabled || tote.status !== 'READY' || tote.photos.length >= 6} onClick={() => cameraInput.current?.click()}><Camera size={36} /><span>{tote.photos.length >= 6 ? 'ครบ 6 รูปแล้ว' : 'ถ่ายภาพสินค้า'}<small>{tote.photos.length >= 6 ? 'ลบรูปเดิมก่อนถ่ายใหม่' : 'แตะเพื่อเปิดกล้อง'}</small></span></button>
+        <input ref={cameraInput} className="camera-input" aria-label="ถ่ายภาพสินค้าใน Tote" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" disabled={editingDisabled || tote.status !== 'READY' || tote.photos.length >= 6} onChange={event => {
+          const slot = [1, 2, 3, 4, 5, 6].find(value => !tote.photos.some(photo => photo.slot === value));
+          if (slot) void upload(slot, event.target.files?.[0]); event.target.value = '';
+        }} />
+        <div className="photos">{Array.from({ length: 6 }, (_, index) => {
+          const slot = index + 1; const photo = tote.photos.find(item => item.slot === slot);
+          const url = `/api/totes/${tote.code}/photos/${slot}?v=${photo?.id || ''}`;
+          return <div className="photo" key={slot}>{photo ? <><button className="thumbnail" aria-label={`ดูรูป ${slot}`} onClick={() => setPhotoUrl(url)}><img src={url} alt={`ภาพสินค้า Tote ${tote.code} ช่อง ${slot}`} /></button>{tote.status === 'READY' && <button disabled={editingDisabled} className="delete-photo" aria-label={`ลบรูป ${slot}`} onClick={() => remove(slot)}><Trash2 size={16} /></button>}<span className="photo-number">{slot}</span></>
+            : <div className="photo-placeholder"><Camera size={24} /><span>รูปที่ {slot}</span></div>}</div>;
+        })}</div><small>การล้างปลายทางไม่ลบรูป หากเริ่มรอบใหม่ให้ลบรูปเก่าก่อนถ่ายเพิ่ม</small>
+      </section>
+      <section className="panel"><h2><History size={20} />ประวัติการใช้งาน</h2><ol className="timeline">{tote.history.map(event => <li key={event.id}><b>{actionLabel[event.action]}</b>{event.store_code && <p>{event.store_code} · {event.store_name}</p>}{event.note && <p className="note">{event.note}</p>}<small>{dateTime(event.created_at)} · {event.worker_name}</small></li>)}</ol></section>
+      <div className="action-bar"><button className="primary" disabled={editingDisabled || (tote.status === 'READY' && !store)} onClick={prepare}>{tote.status === 'READY' ? 'ส่งไป Store' : tote.status === 'AT_STORE' ? 'รับ Tote กลับ' : 'ล้างปลายทาง · พร้อมใช้ใหม่'}<ArrowRight size={20} /></button><button className="text-button" disabled={busy} onClick={() => resetScan()}>สแกนกล่องถัดไป</button></div>
+    </>}
+    <dialog ref={reviewDialog} onCancel={e => { e.preventDefault(); if (!busy) setReview(null); }}><div className="dialog-content"><CheckCircle2 size={36} className="blue" /><h2>ตรวจสอบก่อนยืนยัน</h2>{review && <><b className="tote-code">{review.code}</b><p>{actionLabel[review.action]}</p><div className="notice">{review.destination}</div>{review.note && <p>{review.note}</p>}{review.action === 'RESET' && <small>ล้างเฉพาะปลายทาง ประวัติและรูปยังอยู่</small>}</>}{error && <div role="alert" className="error">{error}</div>}<div className="dialog-actions"><button disabled={busy} onClick={() => { setReview(null); setError(''); }}>กลับไปแก้ไข</button><button className="primary" disabled={busy} onClick={confirm}>{busy ? 'กำลังบันทึก…' : 'ยืนยันบันทึก'}</button></div></div></dialog>
+    {photoUrl && <PhotoViewer key={photoUrl} url={photoUrl} onClose={() => setPhotoUrl('')} />}
+  </>;
+}
