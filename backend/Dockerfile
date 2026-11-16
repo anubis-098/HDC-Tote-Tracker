@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 WORKDIR /app
 COPY requirements.txt requirements.lock ./
-RUN pip install --no-cache-dir -r requirements.lock && addgroup --system app && adduser --system --ingroup app app
+RUN pip install --no-cache-dir -r requirements.lock && python -c "import openpyxl, et_xmlfile" && addgroup --system app && adduser --system --ingroup app app
 COPY app ./app
 COPY migrations ./migrations
 USER app
