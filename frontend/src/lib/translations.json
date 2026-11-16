@@ -396,5 +396,9 @@
   "ระบบอ่านทะเบียนกำลังทำงาน กรุณาลองใหม่": "Plate recognition is busy. Please try again.",
   "ยังไม่ได้ติดตั้ง OCR กรุณา build API ใหม่": "OCR is not installed. Contact IT to rebuild the API.",
   "อ่านภาพนานเกินไป กรุณาถ่ายเฉพาะป้ายทะเบียนให้ชัดขึ้น": "Recognition timed out. Take a clear, close-up photo of the plate.",
-  "ระบบอ่านทะเบียนไม่พร้อม กรุณาพิมพ์ทะเบียนเอง": "Plate recognition unavailable. Enter the plate manually."
+  "ระบบอ่านทะเบียนไม่พร้อม กรุณาพิมพ์ทะเบียนเอง": "Plate recognition unavailable. Enter the plate manually.",
+  "ดาวน์โหลดที่เลือก": "Download selected",
+  "ลบที่เลือก": "Delete selected",
+  "เลือกทั้งหมดในหน้านี้": "Select page",
+  "ยืนยันลบรายการที่เลือกและภาพทั้งหมด?": "Delete selected records and all photos?"
 }

@@ -23,6 +23,7 @@ export function AdminPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const login = location.pathname === "/admin/login";
+  const [selected, setSelected] = useState<string[]>([]);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [stores, setStores] = useState<Store[]>([]);
@@ -77,7 +78,7 @@ export function AdminPage() {
     setTotesLoading(true);
     api<ToteList>(`/totes?q=${encodeURIComponent(toteSearch)}&page=${totePage}`)
       .then((result) => {
-        if (active) setTotes(result);
+        if (active) { setTotes(result); setSelected([]); }
       })
       .catch((error) => {
         if (active) setError(message(error));
@@ -342,6 +343,22 @@ export function AdminPage() {
                 <Search size={20} />
               </button>
             </form>
+            <div className="search">
+              <label><input type="checkbox" disabled={busy || !totes?.items.length} checked={!!totes?.items.length && selected.length === totes.items.length} onChange={e => setSelected(e.target.checked ? totes!.items.map(item => item.code) : [])} />{t("เลือกทั้งหมดในหน้านี้")}</label>
+              <button disabled={busy || !selected.length} onClick={() => {
+                const rows = totes!.items.filter(item => selected.includes(item.code));
+                const cell = (v: unknown) => '"' + String(v ?? '').replace(/^[=+@-]/, "'$&").replaceAll('"','""') + '"';
+                const blob = new Blob(['\ufeff' + [['Tote','Status','Store'], ...rows.map(item => [item.code,item.status,item.store_code])].map(row => row.map(cell).join(',')).join('\r\n')], {type:'text/csv;charset=utf-8'});
+                const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download='selected-totes.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(url),1000);
+              }}>{t("ดาวน์โหลดที่เลือก")} ({selected.length}) CSV</button>
+              <button disabled={busy || !selected.length} onClick={async () => {
+                if (!window.confirm(t("ยืนยันลบรายการที่เลือกและภาพทั้งหมด?"))) return;
+                setBusy(true); setError('');
+                try { for (const code of selected) { await api(`/admin/totes/${encodeURIComponent(code)}`, {method:'DELETE',body:JSON.stringify({confirmation:`DELETE ${code}`})}); setSelected(values => values.filter(value => value !== code)); } }
+                catch(error) { setError(message(error)); }
+                finally {setBusy(false); setToteRefresh(value => value + 1);}
+              }}>{t("ลบที่เลือก")}</button>
+            </div>
             {totesLoading ? (
               <p role="status">{t("กำลังโหลด Tote…")}</p>
             ) : (
@@ -351,6 +368,7 @@ export function AdminPage() {
                 )}
                 {totes?.items.map((item) => (
                   <div className="store-item" key={item.code}>
+                    <input type="checkbox" aria-label={item.code} disabled={busy} checked={selected.includes(item.code)} onChange={e => setSelected(values => e.target.checked ? [...values,item.code] : values.filter(code => code !== item.code))} />
                     <div>
                       <b className="wrap-code">{item.code}</b>
                       <small>
