@@ -121,7 +121,7 @@ export function AdminPage() {
         body: JSON.stringify({ username, password }),
       });
       setPassword("");
-      navigate("/admin/stores");
+      navigate("/admin");
     } catch (error) {
       setError(message(error));
     } finally {
@@ -212,7 +212,7 @@ export function AdminPage() {
         <>
           <StoreImport onImported={async () => setStores(await api<Store[]>("/admin/stores"))} />
           <div className="operator">
-            <Link to="/dashboard">{t("ดูภาพรวม Tote →")}</Link>
+            <Link to="/admin">{t("ดูภาพรวม Tote →")}</Link>
             <button className="text-button" disabled={busy} onClick={logout}>
               <LogOut size={15} />
               {t("ออกจากระบบ")}

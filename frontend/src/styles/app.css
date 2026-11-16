@@ -177,3 +177,23 @@ dialog::backdrop { background: #10243899; }
 .draft-warning { margin: 10px 16px; }
 @media (max-width: 370px) { .site-header { gap: 5px; padding-inline: 6px; } .brand strong { font-size: 12px; } .site-header img { width: 44px; } .live-clock { font-size: 14px; } .panel { margin-inline: 10px; padding: 12px; } .photos { gap: 6px; } .workflow li { font-size: 11px; gap: 4px; } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+
+/* Compact checkboxes with a larger touch target beside each Tote. */
+input[type="checkbox"] { width: 18px; height: 18px; min-height: 18px; padding: 0; margin: 0; flex: 0 0 18px; accent-color: var(--blue); cursor: pointer; }
+.tote-select-all { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }
+.tote-select-row { display: flex; align-items: center; gap: 4px; border-top: 1px solid var(--line); }
+.tote-select-control { display: flex; align-items: center; justify-content: center; flex: 0 0 40px; min-height: 44px; cursor: pointer; }
+.tote-select-row > .tote-list-item { flex: 1; min-width: 0; border-top: 0; }
+
+.admin-shell { display: grid; grid-template-columns: 238px minmax(0,1fr); min-height: 100vh; background:#f3f6fa; }
+.admin-sidebar { position:sticky; top:0; height:100vh; background:white; border-right:1px solid var(--line); padding:24px 16px; display:flex; flex-direction:column; gap:12px; }
+.admin-sidebar h2 { margin:0; color:#133c62; }
+.admin-sidebar nav { display:grid; gap:6px; margin-top:16px; }
+.admin-sidebar nav a { display:flex; align-items:center; gap:10px; padding:12px; color:#40546a; border-radius:8px; }
+.admin-sidebar nav a.active { background:#e7f3fc; color:#0075b5; font-weight:700; }
+.admin-profile { margin-top:auto; display:grid; gap:8px; }
+.admin-profile button { display:flex; align-items:center; justify-content:center; gap:8px; }
+.handheld.admin-workspace { width:100%; max-width:none; margin:0; min-width:0; }
+.admin-workspace > main { width:100%; max-width:1400px; margin:auto; padding:24px; }
+.admin-workspace .site-header { max-width:none; }
+@media(max-width:760px){ .admin-shell{grid-template-columns:1fr}.admin-sidebar{position:static;height:auto;padding:12px}.admin-sidebar>img,.admin-sidebar>h2,.admin-sidebar>small{display:none}.admin-sidebar nav{display:flex;flex-wrap:wrap;margin:0}.admin-profile{display:flex;align-items:center;flex-wrap:wrap}.admin-workspace>main{padding:12px} }

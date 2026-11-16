@@ -2,6 +2,7 @@ import { t, useLanguage, locale } from "./lib/i18n";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AdminLayout } from "./components/AdminLayout";
 import { Layout } from "./components/Layout";
 import { EntryPage } from "./pages/EntryPage";
 import { ScanPage } from "./pages/ScanPage";
@@ -20,12 +21,17 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <AppErrorBoundary>
       <BrowserRouter>
         <Routes>
+          <Route element={<AdminLayout />}>
+            <Route path="/admin" element={<DashboardPage />} />
+            <Route path="/admin/photos" element={<DashboardPage />} />
+            <Route path="/admin/stores" element={<AdminPage />} />
+          </Route>
           <Route element={<Layout />}>
             <Route path="/" element={<EntryPage />} />
             <Route path="/scan" element={<ScanPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/admin/login" element={<AdminPage />} />
-            <Route path="/admin/stores" element={<AdminPage />} />
+
             <Route
               path="*"
               element={

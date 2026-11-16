@@ -5,7 +5,7 @@ import { Clock } from "./Clock";
 import { LanguageSwitch } from "../lib/i18n";
 import { useEffect, useState } from "react";
 
-export function Layout() {
+export function Layout({admin = false}: {admin?: boolean}) {
   useLanguage();
   const location = useLocation();
   const [online, setOnline] = useState(navigator.onLine);
@@ -19,7 +19,7 @@ export function Layout() {
     };
   }, []);
   return (
-    <div className="handheld">
+    <div className={admin ? "handheld admin-workspace" : "handheld"}>
       <header className="site-header">
         <Link className="icon-button" to="/" aria-label={t("กลับหน้าแรก")}>
           <ArrowLeft size={20} />
@@ -44,7 +44,7 @@ export function Layout() {
           )}
         </div>
       )}
-      {location.pathname !== "/" && (
+      {!admin && location.pathname !== "/" && (
         <nav className="tabs" aria-label={t("เมนูหลัก")}>
           <NavLink to="/scan">
             <ScanLine size={17} />
@@ -54,10 +54,7 @@ export function Layout() {
             <LayoutDashboard size={17} />
             {t("ภาพรวม")}
           </NavLink>
-          <NavLink to="/admin/stores">
-            <Settings size={17} />
-            Store
-          </NavLink>
+
         </nav>
       )}
       <main>
