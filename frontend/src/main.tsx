@@ -1,3 +1,4 @@
+import { ArchivePage } from "./pages/ArchivePage";
 import { t, useLanguage, locale } from "./lib/i18n";
 import React from "react";
 import ReactDOM from "react-dom/client";
@@ -23,6 +24,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <Routes>
           <Route element={<AdminLayout />}>
             <Route path="/admin" element={<DashboardPage />} />
+            <Route path="/admin/archive" element={<ArchivePage />} />
             <Route path="/admin/photos" element={<DashboardPage />} />
             <Route path="/admin/stores" element={<AdminPage />} />
           </Route>

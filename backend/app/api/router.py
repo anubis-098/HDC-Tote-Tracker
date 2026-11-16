@@ -122,7 +122,9 @@ def delete_tote(code: str, body: DeleteInput, who=Depends(admin)):
         raise HTTPException(422, 'ข้อความยืนยันไม่ตรงกัน')
     with connect() as conn:
         conn.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', (code,))
-        find_tote(conn, code, lock=True)
+        tote = find_tote(conn, code, lock=True)
+        with connect(True) as images:
+            archive_tote_images(images,tote,who)
         conn.execute('INSERT INTO photo_cleanup_jobs(tote_code) VALUES (%s) ON CONFLICT DO NOTHING', (code,))
         conn.execute('DELETE FROM tote_events WHERE tote_code=%s', (code,))
         conn.execute('DELETE FROM totes WHERE code=%s', (code,))
@@ -148,14 +150,24 @@ def detail(conn, code):
 
 @router.get('/totes')
 def list_totes(q: str = Query(default='', max_length=100), status: str | None = None,
-               page: int = Query(default=1, ge=1), who=Depends(actor)):
+               page: int = Query(default=1, ge=1), plate: str = '', date_from: str | None = None, date_to: str | None = None, store: str = '', who=Depends(actor)):
     if status is not None and status not in ('READY', 'AT_STORE', 'RETURNED'):
         raise HTTPException(422, 'สถานะไม่ถูกต้อง')
     with connect() as conn:
         conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY')
         params = (q.strip().upper(), status, status)
         condition = ' WHERE strpos(code,%s)>0 AND (%s::text IS NULL OR status=%s)'
-        total = conn.execute('SELECT count(*) AS n FROM totes' + condition, params).fetchone()['n']
+        from datetime import date
+        try:
+            start = date.fromisoformat(date_from) if date_from else None
+            end = date.fromisoformat(date_to) if date_to else None
+        except ValueError:
+            raise HTTPException(422, 'Invalid date')
+        if start and end and start > end:
+            raise HTTPException(422, 'Start date must not exceed end date')
+        condition += " AND strpos(lower(coalesce(truck_registration,'')),lower(%s))>0 AND strpos(lower(coalesce(store_code,'')),lower(%s))>0 AND (%s::date IS NULL OR updated_at >= (%s::date::timestamp AT TIME ZONE 'Asia/Bangkok')) AND (%s::date IS NULL OR updated_at < ((%s::date+1)::timestamp AT TIME ZONE 'Asia/Bangkok'))"
+        params = (*params, plate.strip(), store.strip(), start,start,end,end)
+        total = conn.execute('SELECT count(*) AS n FROM totes'  + condition, params).fetchone()['n']
         items = conn.execute('SELECT * FROM totes' + condition + ' ORDER BY updated_at DESC,code LIMIT 30 OFFSET %s', (*params, (page-1)*30)).fetchall()
         counts = {row['status']: row['n'] for row in conn.execute('SELECT status,count(*) AS n FROM totes GROUP BY status').fetchall()}
         return {'items': items, 'total': total, 'page': page, 'counts': counts}
@@ -347,3 +359,44 @@ def download_tote_photos(body: dict, who=Depends(actor)):
             output.close()
     from starlette.background import BackgroundTask
     return StreamingResponse(chunks(), media_type='application/zip', headers={'Content-Disposition':'attachment; filename="tote-photos.zip"','Content-Length':str(size),'Cache-Control':'no-store'}, background=BackgroundTask(output.close))
+
+def archive_tote_images(images, tote, who):
+    rows = images.execute('SELECT * FROM photos WHERE tote_code=%s FOR UPDATE', (tote['code'],)).fetchall()
+    for row in rows:
+        images.execute('INSERT INTO archived_photos(archive_id,photo_id,tote_code,slot,content,sha256,truck_registration,store_code,uploaded_at,actor_name) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)', (uuid4(),row['id'],tote['code'],row['slot'],row['content'],row['sha256'],tote['truck_registration'],tote['store_code'],row['uploaded_at'],who['name']))
+    images.execute('DELETE FROM photos WHERE tote_code=%s', (tote['code'],))
+    return len(rows)
+
+@router.post('/admin/archive-photos')
+def archive_photos(body: dict, who=Depends(admin)):
+    codes = body.get('codes')
+    if not isinstance(codes,list) or not 1<=len(codes)<=30 or any(not isinstance(code,str) for code in codes):
+        raise HTTPException(422,'Select 1 to 30 Totes')
+    count = 0
+    with connect() as conn:
+        totes = [find_tote(conn,code,lock=True) for code in sorted(set(codes))]
+        if any(tote['status']=='AT_STORE' for tote in totes):
+            raise HTTPException(409,'Cannot clear photos while a Tote is AT_STORE')
+        with connect(True) as images:
+            for tote in totes:
+                count += archive_tote_images(images,tote,who)
+                conn.execute('UPDATE totes SET version=version+1 WHERE code=%s',(tote['code'],))
+    return {'archived':count}
+
+@router.get('/admin/archived-photos')
+def archived_photos(q: str='', page: int=Query(1,ge=1), who=Depends(admin)):
+    with connect(True) as images:
+        params=(q.strip(),)
+        total=images.execute("SELECT count(*) AS n FROM archived_photos WHERE strpos(lower(tote_code || ' ' || coalesce(truck_registration,'')),lower(%s))>0",params).fetchone()['n']
+        rows=images.execute("SELECT archive_id,tote_code,slot,truck_registration,store_code,uploaded_at,archived_at FROM archived_photos WHERE strpos(lower(tote_code || ' ' || coalesce(truck_registration,'')),lower(%s))>0 ORDER BY archived_at DESC,archive_id LIMIT 30 OFFSET %s",(*params,(page-1)*30)).fetchall()
+    return {'items':rows,'total':total}
+
+@router.get('/admin/archived-photos/{archive_id}')
+def archived_photo(archive_id: UUID, who=Depends(admin)):
+    import hashlib
+    with connect(True) as images:
+        row=images.execute('SELECT * FROM archived_photos WHERE archive_id=%s',(archive_id,)).fetchone()
+        if not row: raise HTTPException(404,'Archived photo not found')
+        content=bytes(row['content'])
+        if hashlib.sha256(content).hexdigest()!=row['sha256']: raise HTTPException(503,'Photo integrity check failed')
+    return Response(content,media_type='image/jpeg',headers={'Content-Disposition':f'attachment; filename="{row["tote_code"]}-{row["slot"]}.jpg"'})

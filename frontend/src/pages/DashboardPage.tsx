@@ -1,11 +1,18 @@
 import { t, useLanguage, locale } from "../lib/i18n";
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { LayoutDashboard, Search, ArrowUpRight, Download } from "lucide-react";
 import { api, message, statusLabel, dateTime, type ToteList } from "../lib/api";
 import { ToteDonutChart } from "../components/ToteDonutChart";
 
 export function DashboardPage() {
+  const location = useLocation();
+  const photosPage = location.pathname === "/admin/photos";
+  const admin = location.pathname.startsWith("/admin");
+  const [plate,setPlate] = useState("");
+  const [from,setFrom] = useState("");
+  const [to,setTo] = useState("");
+  const [storeFilter,setStoreFilter] = useState("");
   const language = useLanguage();
   const en = language === "en";
   const [selected,setSelected] = useState<string[]>([]);
@@ -24,6 +31,7 @@ export function DashboardPage() {
     setSelected([]);
     setError("");
     const params = new URLSearchParams({ q: search, page: String(page) });
+    params.set("plate",plate);params.set("store",storeFilter);if(from)params.set("date_from",from);if(to)params.set("date_to",to);
     if (status) params.set("status", status);
     api<ToteList>("/totes?" + params)
       .then((result) => {
@@ -42,17 +50,17 @@ export function DashboardPage() {
     return () => {
       active = false;
     };
-  }, [search, status, page, refresh]);
+  }, [search, status, page, refresh, plate, from, to, storeFilter, photosPage]);
   return (
     <>
       <div className="page-title">
         <div>
           <span className="eyebrow">TOTE OVERVIEW</span>
-          <h1>{t("ภาพรวม Tote")}</h1>
+          <h1>{photosPage ? (en ? "Download photos" : "\u0e14\u0e32\u0e27\u0e19\u0e4c\u0e42\u0e2b\u0e25\u0e14\u0e23\u0e39\u0e1b") : t("ภาพรวม Tote")}</h1>
         </div>
         <LayoutDashboard size={28} />
       </div>
-      {data ? (
+      {!photosPage && (data ? (
         <ToteDonutChart
           counts={data.counts}
           selected={status}
@@ -67,7 +75,7 @@ export function DashboardPage() {
             {t("กำลังโหลดสัดส่วน Tote…")}
           </div>
         )
-      )}
+      ))}
       <section className="panel form">
         <form
           className="search"
@@ -106,6 +114,22 @@ export function DashboardPage() {
             ))}
           </select>
         </label>
+        {photosPage && <div className="archive-filters">
+          <label>{en ? 'Truck registration' : '\u0e17\u0e30\u0e40\u0e1a\u0e35\u0e22\u0e19\u0e23\u0e16'}<input value={plate} onChange={e=>{setPlate(e.target.value);setPage(1);}}/></label>
+          <label>Store<input value={storeFilter} onChange={e=>{setStoreFilter(e.target.value);setPage(1);}}/></label>
+          <label>{en ? 'Updated from' : '\u0e15\u0e31\u0e49\u0e07\u0e41\u0e15\u0e48\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48'}<input type="date" value={from} max={to || undefined} onChange={e=>{setFrom(e.target.value);setPage(1);}}/></label>
+          <label>{en ? 'Updated to' : '\u0e16\u0e36\u0e07\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48'}<input type="date" value={to} min={from || undefined} onChange={e=>{setTo(e.target.value);setPage(1);}}/></label>
+        </div>}
+        {admin && !photosPage && <div className="row">
+          <button disabled={!selected.length || downloading || selected.some(code=>data?.items.find(item=>item.code===code)?.status==='AT_STORE')} onClick={async()=>{
+            if(!window.confirm(en ? 'Move selected photos to Archive? They can be downloaded from Archive.' : '\u0e22\u0e49\u0e32\u0e22\u0e23\u0e39\u0e1b\u0e17\u0e35\u0e48\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e44\u0e1b Archive?'))return;
+            setDownloading(true);try{await api('/admin/archive-photos',{method:'POST',body:JSON.stringify({codes:selected})});setRefresh(v=>v+1);}catch(error){setError(message(error));}finally{setDownloading(false);}
+          }}>{en ? 'Clear photos to Archive' : '\u0e40\u0e04\u0e25\u0e35\u0e22\u0e23\u0e4c\u0e23\u0e39\u0e1b\u0e44\u0e1b Archive'}</button>
+          <button disabled={!selected.length || downloading} onClick={async()=>{
+            if(window.prompt('Type DELETE SELECTED TOTES to confirm')!=='DELETE SELECTED TOTES')return;
+            setDownloading(true);try{for(const code of selected){await api('/admin/totes/'+encodeURIComponent(code),{method:'DELETE',body:JSON.stringify({confirmation:'DELETE '+code})});}}catch(error){setError(message(error));}finally{setDownloading(false);setRefresh(v=>v+1);}
+          }}>{en ? 'Delete selected Totes' : '\u0e25\u0e1a Tote \u0e17\u0e35\u0e48\u0e40\u0e25\u0e37\u0e2d\u0e01'}</button>
+        </div>}
         <div className="row">
           <small>
             {data?.total ?? 0}
