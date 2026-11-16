@@ -262,16 +262,40 @@ def delete_photo(code: str, slot: int, expected_version: int = Query(ge=0), expe
     return {'ok': True}
 
 @router.post('/admin/stores/import')
-async def import_stores(file: UploadFile = File(...), sheet: str = Form(''), who=Depends(admin)):
-    from app.services.store_import import parse_stores
+def import_stores(file: UploadFile = File(...), sheet: str = Form(''), who=Depends(admin)):
+    try:
+        from app.services.store_import import parse_stores
+    except ModuleNotFoundError:
+        raise HTTPException(503, "Excel support is missing. Rebuild the api image: docker compose up -d --build api")
     if not (file.filename or '').lower().endswith('.xlsx'):
         raise HTTPException(422, 'Please upload an XLSX file')
-    data = await file.read(5_000_001)
-    await file.close()
+    data = file.file.read(5_000_001)
+    file.file.close()
     if len(data)>5_000_000:
         raise HTTPException(413, 'Maximum file size is 5 MB')
     records = parse_stores(data, sheet.strip())
     with connect() as conn:
         for code,name in records.items():
-            conn.execute('INSERT INTO stores(code,name,active) VALUES (%s,%s,true) ON CONFLICT(code) DO UPDATE SET name=excluded.name', (code,name))
+            conn.execute('INSERT INTO stores(code,name,active) VALUES (%s,%s,true) ON CONFLICT(code) DO UPDATE SET name=excluded.name,active=CASE WHEN stores.deleted_at IS NOT NULL THEN true ELSE stores.active END,deleted_at=NULL', (code,name))
     return {'imported': len(records)}
+
+@router.post('/admin/stores/excel-sheets')
+def store_excel_sheets(file: UploadFile = File(...), who=Depends(admin)):
+    try:
+        from app.services.store_import import workbook_sheets
+    except ModuleNotFoundError:
+        raise HTTPException(503, 'Excel support is missing. Rebuild the api image: docker compose up -d --build api')
+    data = file.file.read(5_000_001)
+    file.file.close()
+    if len(data)>5_000_000:
+        raise HTTPException(413, 'Maximum file size is 5 MB')
+    return {'sheets': workbook_sheets(data)}
+
+@router.post('/admin/stores/delete-all')
+def delete_all_stores(body: dict, who=Depends(admin)):
+    if body.get('confirmation') != 'DELETE ALL STORES':
+        raise HTTPException(422, 'Type DELETE ALL STORES to confirm')
+    with connect() as conn:
+        result = conn.execute('UPDATE stores SET active=false,deleted_at=now() WHERE deleted_at IS NULL')
+        count = result.rowcount
+    return {'deleted': count}

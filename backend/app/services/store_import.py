@@ -18,7 +18,7 @@ def parse_stores(data: bytes, sheet: str = ''):
         ws = book[sheet] if sheet else book.worksheets[0]
         rows = ws.iter_rows()
         headers = [re.sub(r'[^a-z0-9]', '', str(c.value or '').lower()) for c in next(rows, [])]
-        codes = {'stno', 'storeno', 'storecode', 'code'}
+        codes = {'st', 'stno', 'storeno', 'storecode', 'code'}
         names = {'stname', 'storename', 'name'}
         ci = next((i for i,v in enumerate(headers) if v in codes), None)
         ni = next((i for i,v in enumerate(headers) if v in names), None)
@@ -50,3 +50,16 @@ def parse_stores(data: bytes, sheet: str = ''):
         return result
     finally:
         book.close()
+
+def workbook_sheets(data):
+    try:
+        with ZipFile(BytesIO(data)) as archive:
+            if sum(i.file_size for i in archive.infolist()) > 50_000_000:
+                raise ValueError('Workbook is too large')
+        book = load_workbook(BytesIO(data), read_only=True)
+        try:
+            return book.sheetnames
+        finally:
+            book.close()
+    except Exception:
+        raise HTTPException(422, 'Invalid or oversized XLSX workbook')
