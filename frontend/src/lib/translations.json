@@ -139,7 +139,7 @@
   "ค้นหา": "Search",
   "CSV หน้านี้": "Export this page as CSV",
   "กำลังโหลด…": "Loading…",
-  "ทะเบียนรถ": "License plate",
+  "ทะเบียนรถ": "Truck registration",
   "วันที่": "Date",
   "ไม่พบเที่ยวรถตามเงื่อนไข": "No matching trips",
   "หน้า": "Page",
@@ -401,5 +401,6 @@
   "ลบที่เลือก": "Delete selected",
   "เลือกทั้งหมดในหน้านี้": "Select page",
   "ยืนยันลบรายการที่เลือกและภาพทั้งหมด?": "Delete selected records and all photos?",
-  "รหัส Tote ต้องเป็น HDC ตามด้วยตัวเลข เช่น HDC-000001 / HDC1 หรือ HDC000001 (รวมไม่เกิน 100 ตัวอักษร)": "Tote IDs must start with HDC, optionally followed by a hyphen, then digits (e.g. HDC-000001 or HDC000001; up to 100 characters)."
+  "รหัส Tote ต้องเป็น HDC ตามด้วยตัวเลข เช่น HDC-000001 / HDC1 หรือ HDC000001 (รวมไม่เกิน 100 ตัวอักษร)": "Tote IDs must start with HDC, optionally followed by a hyphen, then digits (e.g. HDC-000001 or HDC000001; up to 100 characters).",
+  "กรุณากรอกทะเบียนรถ": "Truck registration is required"
 }

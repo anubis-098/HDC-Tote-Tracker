@@ -35,4 +35,5 @@ class TransitionInput(CleanInput):
     expected_version: int = Field(ge=0)
     request_id: UUID
     store_code: str | None = Field(default=None, max_length=30)
+    truck_registration: str | None = Field(default=None, min_length=1, max_length=40)
     note: str = Field(default='', max_length=500)

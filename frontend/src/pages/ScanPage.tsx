@@ -37,6 +37,7 @@ interface Review {
   action: Action;
   expected_version: number;
   store_code?: string;
+  truck_registration?: string;
   note: string;
   request_id: string;
   destination: string;
@@ -55,6 +56,7 @@ export function ScanPage() {
   const [tote, setTote] = useState<Tote | null>(null);
   const [unknown, setUnknown] = useState("");
   const [stores, setStores] = useState<Store[]>([]);
+  const [truckRegistration,setTruckRegistration] = useState("");
   const [store, setStore] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -73,7 +75,7 @@ export function ScanPage() {
         Date.parse(photo.uploaded_at) < Date.parse(latestReset.created_at),
     );
   useBeforeUnload((event) => {
-    if (busy || store || note.trim()) {
+    if (busy || store || truckRegistration.trim() || note.trim()) {
       event.preventDefault();
       event.returnValue = "";
     }
@@ -86,7 +88,7 @@ export function ScanPage() {
       if (!link || link.href === window.location.href) return;
       if (
         busy ||
-        ((store || note.trim()) &&
+        ((store || truckRegistration.trim() || note.trim()) &&
           !window.confirm(
             t("มีข้อมูลที่ยังไม่ยืนยัน ต้องการออกจากหน้านี้หรือไม่?"),
           ))
@@ -97,7 +99,7 @@ export function ScanPage() {
     };
     document.addEventListener("click", protectDraft, true);
     return () => document.removeEventListener("click", protectDraft, true);
-  }, [busy, store, note]);
+  }, [busy, store, truckRegistration, note]);
   useEffect(() => {
     let active = true;
     api<Identity>("/worker/me")
@@ -139,6 +141,7 @@ export function ScanPage() {
     setCode("");
     setUnknown("");
     setStore("");
+    setTruckRegistration("");
     setNote("");
     setReview(null);
     setPhotoUrl("");
@@ -161,7 +164,7 @@ export function ScanPage() {
     }
     if (
       tote &&
-      (store || note.trim()) &&
+      (store || truckRegistration.trim() || note.trim()) &&
       !window.confirm(
         t(
           "การค้นหาหรือโหลดใหม่จะล้างข้อมูลที่ยังไม่ยืนยัน ต้องการดำเนินการต่อหรือไม่?",
@@ -176,6 +179,7 @@ export function ScanPage() {
     setUnknown("");
     setTote(null);
     setStore("");
+    setTruckRegistration("");
     setNote("");
     setCode(value);
     try {
@@ -221,11 +225,13 @@ export function ScanPage() {
       return;
     }
     setError("");
+    if(action === "DISPATCH" && !truckRegistration.trim()){setError(t("กรุณากรอกทะเบียนรถ"));return;}
     setReview({
       code: tote.code,
       action,
       expected_version: tote.version,
       store_code: action === "DISPATCH" ? store : undefined,
+      truck_registration: action === "DISPATCH" ? truckRegistration.trim() : undefined,
       note: note.trim(),
       request_id: requestId(),
       destination: selected
@@ -252,6 +258,7 @@ export function ScanPage() {
         setTote(result);
         setReview(null);
         setStore("");
+    setTruckRegistration("");
         setNote("");
         setSuccess(t("บันทึกแล้ว · ") + t(statusLabel[result.status]));
       }
@@ -451,7 +458,7 @@ export function ScanPage() {
               {t("ปรับสถานะ Tote")}
             </h2>
             {tote.status === "READY" ? (
-              <label>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}><label>
                 {t("Store ปลายทาง")}
                 <select
                   required
@@ -471,7 +478,7 @@ export function ScanPage() {
                     {t("ยังไม่มี Store เปิดใช้งาน ให้ผู้ดูแลเพิ่ม Store ก่อน")}
                   </small>
                 )}
-              </label>
+              </label><label>{t("ทะเบียนรถ")}<input required maxLength={40} disabled={busy} value={truckRegistration} onChange={e=>setTruckRegistration(e.target.value)}/></label></div>
             ) : (
               <div className="notice">
                 {tote.status === "AT_STORE"
@@ -624,6 +631,7 @@ export function ScanPage() {
                       {event.store_code} · {event.store_name}
                     </p>
                   )}
+                  {event.truck_registration && <p>{event.truck_registration}</p>}
                   {event.note && <p className="note">{event.note}</p>}
                   <small>
                     {dateTime(event.created_at)} · {event.worker_name}
@@ -670,6 +678,7 @@ export function ScanPage() {
               <b className="tote-code">{review.code}</b>
               <p>{t(actionLabel[review.action])}</p>
               <div className="notice">{review.destination}</div>
+              <p>{review.truck_registration}</p>
               {review.note && <p>{review.note}</p>}
               {review.action === "RESET" && (
                 <small>{t("ล้างเฉพาะปลายทาง ประวัติและรูปยังอยู่")}</small>

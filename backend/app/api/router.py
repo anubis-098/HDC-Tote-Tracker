@@ -140,7 +140,7 @@ def find_tote(conn, code, lock=False, shared=False):
 def detail(conn, code):
     tote = find_tote(conn, code, shared=True)
     tote['history'] = conn.execute(
-        'SELECT id,action,from_status,to_status,store_code,store_name,worker_name,note,created_at FROM tote_events WHERE tote_code=%s ORDER BY created_at DESC,id DESC', (code,)).fetchall()
+        'SELECT id,action,from_status,to_status,store_code,store_name,truck_registration,worker_name,note,created_at FROM tote_events WHERE tote_code=%s ORDER BY created_at DESC,id DESC', (code,)).fetchall()
     with connect(True) as images:
         tote['photos'] = images.execute('SELECT id,slot,byte_size,worker_name,uploaded_at FROM photos WHERE tote_code=%s ORDER BY slot', (code,)).fetchall()
     return tote
@@ -197,17 +197,21 @@ def transition(code: str, body: TransitionInput, who=Depends(worker)):
         if tote['status'] != source:
             raise HTTPException(409, 'ไม่สามารถเปลี่ยนสถานะตามลำดับนี้ได้')
         store_code, store_name = tote['store_code'], tote['store_name']
+        truck_registration = tote['truck_registration']
         if body.action == 'DISPATCH':
+            if not body.truck_registration or not body.truck_registration.strip():
+                raise HTTPException(422, 'Truck registration is required')
+            truck_registration = body.truck_registration.strip()
             store = conn.execute('SELECT * FROM stores WHERE code=%s AND active=true AND deleted_at IS NULL FOR SHARE', (body.store_code,)).fetchone()
             if not store:
                 raise HTTPException(422, 'กรุณาเลือก Store ที่เปิดใช้งาน')
             store_code, store_name = store['code'], store['name']
         elif body.store_code is not None:
             raise HTTPException(422, 'การรับกลับและล้างค่าไม่ต้องระบุ Store ใหม่')
-        conn.execute('INSERT INTO tote_events(id,tote_code,action,from_status,to_status,store_code,store_name,worker_name,note,request_id,request_payload) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
-                     (uuid4(), code, body.action, source, target, store_code, store_name, who['name'], body.note, body.request_id, Jsonb(payload)))
-        conn.execute('UPDATE totes SET status=%s,store_code=%s,store_name=%s,version=version+1,updated_at=now() WHERE code=%s',
-                     (target, None if target == 'READY' else store_code, None if target == 'READY' else store_name, code))
+        conn.execute('INSERT INTO tote_events(id,tote_code,action,from_status,to_status,store_code,store_name,truck_registration,worker_name,note,request_id,request_payload) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                     (uuid4(), code, body.action, source, target, store_code, store_name, truck_registration, who['name'], body.note, body.request_id, Jsonb(payload)))
+        conn.execute('UPDATE totes SET status=%s,store_code=%s,store_name=%s,truck_registration=%s,version=version+1,updated_at=now() WHERE code=%s',
+                     (target, None if target == 'READY' else store_code, None if target == 'READY' else store_name, truck_registration, code))
         return detail(conn, code)
 
 
@@ -316,8 +320,7 @@ def download_tote_photos(body: dict, who=Depends(actor)):
         with connect() as conn, connect(True) as images, ZipFile(output, 'w', ZIP_STORED) as archive:
             for code in codes:
                 tote = find_tote(conn, code, shared=True)
-                if tote['status'] != 'AT_STORE':
-                    raise HTTPException(409, f'{code}: no longer AT_STORE. Refresh and select again.')
+
                 rows = images.execute('SELECT id,slot FROM photos WHERE tote_code=%s ORDER BY slot FOR SHARE', (code,)).fetchall()
                 if not rows:
                     raise HTTPException(409, f'{code}: no photos available')
@@ -326,7 +329,11 @@ def download_tote_photos(body: dict, who=Depends(actor)):
                     content = bytes(photo['content'])
                     if hashlib.sha256(content).hexdigest() != photo['sha256']:
                         raise HTTPException(503, f'{code}: photo integrity check failed')
-                    archive.writestr(f"{code}/photo-{row['slot']}.jpg", content)
+                    from zoneinfo import ZoneInfo
+                    safe_plate = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '-', tote['truck_registration'] or 'no-registration').strip(' .') or 'no-registration'
+                    dispatch = conn.execute("SELECT created_at FROM tote_events WHERE tote_code=%s AND action='DISPATCH' ORDER BY created_at DESC LIMIT 1", (code,)).fetchone()
+                    date = (dispatch['created_at'] if dispatch else tote['updated_at']).astimezone(ZoneInfo('Asia/Bangkok')).strftime('%d-%m-%Y')
+                    archive.writestr(f"{code}_{safe_plate}_{date}/photo-{row['slot']}.jpg", content)
         size = output.tell()
         output.seek(0)
     except BaseException:

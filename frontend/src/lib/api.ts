@@ -39,9 +39,9 @@ export const actionLabel: Record<Action | 'REGISTER', string> = { REGISTER: 'ล
 export const dateTime = (value: string) => new Date(value).toLocaleString(locale(), { timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short' });
 export interface Identity { id: string; name: string; role: string }
 export interface Store { code: string; name: string; active: boolean }
-export interface ToteSummary { code: string; status: Status; store_code: string | null; store_name: string | null; version: number; updated_at: string }
+export interface ToteSummary { truck_registration: string | null; code: string; status: Status; store_code: string | null; store_name: string | null; version: number; updated_at: string }
 export interface Tote extends ToteSummary {
   photos: { id: string; slot: number; uploaded_at: string }[];
-  history: { id: string; action: Action | 'REGISTER'; store_code: string | null; store_name: string | null; worker_name: string; note: string; created_at: string }[];
+  history: { truck_registration: string | null; id: string; action: Action | 'REGISTER'; store_code: string | null; store_name: string | null; worker_name: string; note: string; created_at: string }[];
 }
 export interface ToteList { items: ToteSummary[]; total: number; counts: Partial<Record<Status, number>> }

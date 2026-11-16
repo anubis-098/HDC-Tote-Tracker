@@ -120,7 +120,7 @@ export function DashboardPage() {
           </button>
         </div>
         <div className="row">
-          <label><input type="checkbox" disabled={loading || downloading || !data?.items.some(item=>item.status==="AT_STORE")} checked={!!data?.items.some(item=>item.status==="AT_STORE") && data.items.filter(item=>item.status==="AT_STORE").every(item=>selected.includes(item.code))} onChange={e=>setSelected(e.target.checked ? data!.items.filter(item=>item.status==="AT_STORE").map(item=>item.code) : [])}/>{en ? "Select AT STORE Totes on this page" : "\u0e40\u0e25\u0e37\u0e2d\u0e01 Tote \u0e17\u0e35\u0e48\u0e2a\u0e48\u0e07\u0e44\u0e1b Store \u0e43\u0e19\u0e2b\u0e19\u0e49\u0e32\u0e19\u0e35\u0e49"}</label>
+          <label><input type="checkbox" disabled={loading || downloading || !data?.items.length} checked={!!data?.items.length && data.items.every(item=>selected.includes(item.code))} onChange={e=>setSelected(e.target.checked ? data!.items.map(item=>item.code) : [])}/>{en ? "Select Totes on this page" : "\u0e40\u0e25\u0e37\u0e2d\u0e01 Tote \u0e17\u0e35\u0e48\u0e2a\u0e48\u0e07\u0e44\u0e1b Store \u0e43\u0e19\u0e2b\u0e19\u0e49\u0e32\u0e19\u0e35\u0e49"}</label>
           <button className="primary" disabled={loading || downloading || !selected.length} onClick={async()=>{
             setDownloading(true);setError("");
             try {
@@ -148,13 +148,13 @@ export function DashboardPage() {
               )}
               {data?.items.map((tote) => (
                 <div key={tote.code}>
-                  {tote.status === "AT_STORE" && <label><input type="checkbox" aria-label={"Select " + tote.code} checked={selected.includes(tote.code)} disabled={downloading || loading} onChange={e=>setSelected(values=>e.target.checked ? [...values,tote.code] : values.filter(code=>code!==tote.code))}/>{en ? "Select" : "\u0e40\u0e25\u0e37\u0e2d\u0e01"} {tote.code}</label>}
+                  {<label><input type="checkbox" aria-label={"Select " + tote.code} checked={selected.includes(tote.code)} disabled={downloading || loading} onChange={e=>setSelected(values=>e.target.checked ? [...values,tote.code] : values.filter(code=>code!==tote.code))}/>{en ? "Select" : "\u0e40\u0e25\u0e37\u0e2d\u0e01"} {tote.code}</label>}
                 <Link
                   className="tote-list-item"
                   to={"/scan?code=" + tote.code}
                 >
                   <div className="row">
-                    <b>{tote.code}</b>
+                    <b>{tote.code}</b><small>{tote.truck_registration}</small>
                     <span className={"badge " + tote.status}>
                       {t(statusLabel[tote.status])}
                     </span>
