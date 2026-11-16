@@ -1,3 +1,4 @@
+import { locale } from './i18n';
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
@@ -35,7 +36,7 @@ export type Status = 'READY' | 'AT_STORE' | 'RETURNED';
 export type Action = 'DISPATCH' | 'RETURN' | 'RESET';
 export const statusLabel: Record<Status, string> = { READY: 'พร้อมใช้งาน', AT_STORE: 'ส่งไป Store', RETURNED: 'รับกลับแล้ว' };
 export const actionLabel: Record<Action | 'REGISTER', string> = { REGISTER: 'ลงทะเบียน Tote', DISPATCH: 'ส่งไป Store', RETURN: 'รับ Tote กลับ', RESET: 'ล้างปลายทาง · พร้อมใช้ใหม่' };
-export const dateTime = (value: string) => new Date(value).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short' });
+export const dateTime = (value: string) => new Date(value).toLocaleString(locale(), { timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short' });
 export interface Identity { id: string; name: string; role: string }
 export interface Store { code: string; name: string; active: boolean }
 export interface ToteSummary { code: string; status: Status; store_code: string | null; store_name: string | null; version: number; updated_at: string }
