@@ -2,7 +2,7 @@ from collections import defaultdict, deque
 from time import monotonic
 from threading import Lock
 from uuid import UUID, uuid4
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, File, Query
+from fastapi import Form, APIRouter, Depends, HTTPException, Request, Response, UploadFile, File, Query
 from psycopg.types.json import Jsonb
 from app.api.schemas import WorkerInput, LoginInput, StoreInput, ToteInput, TransitionInput, DeleteInput
 from app.core.security import worker, admin, actor, create_session, password_matches, password_hash
@@ -260,3 +260,18 @@ def delete_photo(code: str, slot: int, expected_version: int = Query(ge=0), expe
                 raise HTTPException(409, 'รูปในช่องนี้เปลี่ยนแล้ว กรุณาโหลดข้อมูลใหม่ก่อนลบ')
             images.execute('DELETE FROM photos WHERE tote_code=%s AND slot=%s AND id=%s', (code, slot, expected_photo_id))
     return {'ok': True}
+
+@router.post('/admin/stores/import')
+async def import_stores(file: UploadFile = File(...), sheet: str = Form(''), who=Depends(admin)):
+    from app.services.store_import import parse_stores
+    if not (file.filename or '').lower().endswith('.xlsx'):
+        raise HTTPException(422, 'Please upload an XLSX file')
+    data = await file.read(5_000_001)
+    await file.close()
+    if len(data)>5_000_000:
+        raise HTTPException(413, 'Maximum file size is 5 MB')
+    records = parse_stores(data, sheet.strip())
+    with connect() as conn:
+        for code,name in records.items():
+            conn.execute('INSERT INTO stores(code,name,active) VALUES (%s,%s,true) ON CONFLICT(code) DO UPDATE SET name=excluded.name', (code,name))
+    return {'imported': len(records)}

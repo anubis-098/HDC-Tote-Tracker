@@ -1,3 +1,4 @@
+import { StoreImport } from "../components/StoreImport";
 import { t, useLanguage, locale } from "../lib/i18n";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -209,6 +210,7 @@ export function AdminPage() {
         </form>
       ) : ready ? (
         <>
+          <StoreImport onImported={async () => setStores(await api<Store[]>("/admin/stores"))} />
           <div className="operator">
             <Link to="/dashboard">{t("ดูภาพรวม Tote →")}</Link>
             <button className="text-button" disabled={busy} onClick={logout}>
