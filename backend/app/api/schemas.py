@@ -23,7 +23,7 @@ class StoreInput(CleanInput):
 
 
 class ToteInput(CleanInput):
-    code: str = Field(pattern=r'^HDC[0-9]+$', max_length=100)
+    code: str = Field(pattern=r'^HDC-?[0-9]+$', max_length=100)
 
 
 class DeleteInput(BaseModel):

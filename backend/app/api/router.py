@@ -308,7 +308,7 @@ def download_tote_photos(body: dict, who=Depends(actor)):
     from zipfile import ZipFile, ZIP_STORED
     from fastapi.responses import StreamingResponse
     codes = body.get('codes')
-    if not isinstance(codes, list) or not 1 <= len(codes) <= 30 or any(not isinstance(code,str) or not re.fullmatch(r'HDC[0-9]{1,97}',code) for code in codes):
+    if not isinstance(codes, list) or not 1 <= len(codes) <= 30 or any(not isinstance(code,str) or not re.fullmatch(r'HDC-?[0-9]+',code) or len(code)>100 for code in codes):
         raise HTTPException(422, 'Select between 1 and 30 Totes')
     codes = sorted(set(codes))
     output = TemporaryFile()

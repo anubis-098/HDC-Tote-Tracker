@@ -151,10 +151,10 @@ export function ScanPage() {
   async function lookup(raw: string) {
     if (scanning.current) return;
     const value = raw.trim().toUpperCase();
-    if (!/^HDC\d+$/.test(value) || value.length > 100) {
+    if (!/^HDC-?\d+$/.test(value) || value.length > 100) {
       setError(
         t(
-          "รหัส Tote ต้องเป็น HDC ตามด้วยตัวเลข เช่น HDC1 หรือ HDC000001 (รวมไม่เกิน 100 ตัวอักษร)",
+          "รหัส Tote ต้องเป็น HDC ตามด้วยตัวเลข เช่น HDC-000001 / HDC1 หรือ HDC000001 (รวมไม่เกิน 100 ตัวอักษร)",
         ),
       );
       return;
