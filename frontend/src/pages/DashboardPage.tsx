@@ -1,12 +1,15 @@
 import { t, useLanguage, locale } from "../lib/i18n";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { LayoutDashboard, Search, ArrowUpRight } from "lucide-react";
+import { LayoutDashboard, Search, ArrowUpRight, Download } from "lucide-react";
 import { api, message, statusLabel, dateTime, type ToteList } from "../lib/api";
 import { ToteDonutChart } from "../components/ToteDonutChart";
 
 export function DashboardPage() {
-  useLanguage();
+  const language = useLanguage();
+  const en = language === "en";
+  const [selected,setSelected] = useState<string[]>([]);
+  const [downloading,setDownloading] = useState(false);
   const [data, setData] = useState<ToteList | null>(null);
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
@@ -18,6 +21,7 @@ export function DashboardPage() {
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setSelected([]);
     setError("");
     const params = new URLSearchParams({ q: search, page: String(page) });
     if (status) params.set("status", status);
@@ -115,6 +119,17 @@ export function DashboardPage() {
             {t("รีเฟรชข้อมูล")}
           </button>
         </div>
+        <div className="row">
+          <label><input type="checkbox" disabled={loading || downloading || !data?.items.some(item=>item.status==="AT_STORE")} checked={!!data?.items.some(item=>item.status==="AT_STORE") && data.items.filter(item=>item.status==="AT_STORE").every(item=>selected.includes(item.code))} onChange={e=>setSelected(e.target.checked ? data!.items.filter(item=>item.status==="AT_STORE").map(item=>item.code) : [])}/>{en ? "Select AT STORE Totes on this page" : "\u0e40\u0e25\u0e37\u0e2d\u0e01 Tote \u0e17\u0e35\u0e48\u0e2a\u0e48\u0e07\u0e44\u0e1b Store \u0e43\u0e19\u0e2b\u0e19\u0e49\u0e32\u0e19\u0e35\u0e49"}</label>
+          <button className="primary" disabled={loading || downloading || !selected.length} onClick={async()=>{
+            setDownloading(true);setError("");
+            try {
+              const response=await fetch('/api/tote-photo-downloads',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({codes:selected})});
+              if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body.detail || `Download failed (${response.status})`);}
+              const blob=await response.blob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='tote-photos.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+            }catch(error){setError(message(error));}finally{setDownloading(false);}
+          }}><Download size={18}/>{downloading ? '...' : en ? 'Download photos' : '\u0e14\u0e32\u0e27\u0e19\u0e4c\u0e42\u0e2b\u0e25\u0e14\u0e23\u0e39\u0e1b'} ({selected.length})</button>
+        </div>
         {error && (
           <div role="alert" className="error">
             {t(error)}
@@ -132,9 +147,10 @@ export function DashboardPage() {
                 <div className="empty">{t("ไม่พบ Tote ตามเงื่อนไข")}</div>
               )}
               {data?.items.map((tote) => (
+                <div key={tote.code}>
+                  {tote.status === "AT_STORE" && <label><input type="checkbox" aria-label={"Select " + tote.code} checked={selected.includes(tote.code)} disabled={downloading || loading} onChange={e=>setSelected(values=>e.target.checked ? [...values,tote.code] : values.filter(code=>code!==tote.code))}/>{en ? "Select" : "\u0e40\u0e25\u0e37\u0e2d\u0e01"} {tote.code}</label>}
                 <Link
                   className="tote-list-item"
-                  key={tote.code}
                   to={"/scan?code=" + tote.code}
                 >
                   <div className="row">
@@ -153,6 +169,7 @@ export function DashboardPage() {
                     <ArrowUpRight size={17} />
                   </div>
                 </Link>
+                </div>
               ))}
               <div className="pagination">
                 <button

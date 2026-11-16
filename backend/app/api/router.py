@@ -299,3 +299,44 @@ def delete_all_stores(body: dict, who=Depends(admin)):
         result = conn.execute('UPDATE stores SET active=false,deleted_at=now() WHERE deleted_at IS NULL')
         count = result.rowcount
     return {'deleted': count}
+
+@router.post('/tote-photo-downloads')
+def download_tote_photos(body: dict, who=Depends(actor)):
+    import hashlib
+    import re
+    from tempfile import TemporaryFile
+    from zipfile import ZipFile, ZIP_STORED
+    from fastapi.responses import StreamingResponse
+    codes = body.get('codes')
+    if not isinstance(codes, list) or not 1 <= len(codes) <= 30 or any(not isinstance(code,str) or not re.fullmatch(r'HDC[0-9]{1,97}',code) for code in codes):
+        raise HTTPException(422, 'Select between 1 and 30 Totes')
+    codes = sorted(set(codes))
+    output = TemporaryFile()
+    try:
+        with connect() as conn, connect(True) as images, ZipFile(output, 'w', ZIP_STORED) as archive:
+            for code in codes:
+                tote = find_tote(conn, code, shared=True)
+                if tote['status'] != 'AT_STORE':
+                    raise HTTPException(409, f'{code}: no longer AT_STORE. Refresh and select again.')
+                rows = images.execute('SELECT id,slot FROM photos WHERE tote_code=%s ORDER BY slot FOR SHARE', (code,)).fetchall()
+                if not rows:
+                    raise HTTPException(409, f'{code}: no photos available')
+                for row in rows:
+                    photo = images.execute('SELECT content,sha256 FROM photos WHERE id=%s', (row['id'],)).fetchone()
+                    content = bytes(photo['content'])
+                    if hashlib.sha256(content).hexdigest() != photo['sha256']:
+                        raise HTTPException(503, f'{code}: photo integrity check failed')
+                    archive.writestr(f"{code}/photo-{row['slot']}.jpg", content)
+        size = output.tell()
+        output.seek(0)
+    except BaseException:
+        output.close()
+        raise
+    def chunks():
+        try:
+            while chunk := output.read(65536):
+                yield chunk
+        finally:
+            output.close()
+    from starlette.background import BackgroundTask
+    return StreamingResponse(chunks(), media_type='application/zip', headers={'Content-Disposition':'attachment; filename="tote-photos.zip"','Content-Length':str(size),'Cache-Control':'no-store'}, background=BackgroundTask(output.close))
