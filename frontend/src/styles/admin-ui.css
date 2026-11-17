@@ -1,0 +1,38 @@
+/* Shared administrator sizing and visual hierarchy for both HDC apps. */
+:is(.admin-shell,.app-shell){grid-template-columns:216px minmax(0,1fr);background:#f3f6fa;font-size:13px;line-height:1.6}
+:is(.admin-shell,.app-shell)>aside{box-sizing:border-box;width:216px;padding:18px 12px;gap:10px;font-size:13px}
+:is(.admin-shell,.app-shell)>aside>img{display:block;width:120px;height:48px;object-fit:contain;object-position:left center;margin:0}
+:is(.admin-shell,.app-shell)>aside>h2{font-size:21px;font-weight:700;line-height:1.35;margin:0;color:#133c62;min-height:57px;display:flex;align-items:center}
+:is(.admin-shell,.app-shell)>aside>small{font-size:10px;letter-spacing:1.2px;color:#60768a}
+:is(.admin-shell,.app-shell)>aside nav{margin-top:10px;gap:4px}
+:is(.admin-shell,.app-shell)>aside nav a{min-height:40px;padding:8px 10px;font-size:13px;line-height:20px;border-radius:8px;gap:10px}
+:is(.admin-shell,.app-shell) .admin-profile{border-top:1px solid #dbe4ed;padding-top:14px;font-size:13px;gap:6px}
+:is(.admin-shell .admin-workspace,.app-shell)>main{padding:16px;max-width:1280px;width:100%;margin:0 auto;box-sizing:border-box;font-size:13px}
+:is(.admin-shell,.app-shell) h1{font-size:23px;line-height:1.4;font-weight:700;margin:4px 0 12px;color:#133c62}
+:is(.admin-shell,.app-shell) main h2{font-size:15px;line-height:1.5;font-weight:700}
+:is(.admin-shell,.app-shell) main .panel{padding:16px;margin:12px 0;border-radius:10px;border:1px solid #dbe4ed;background:#fff;box-shadow:0 3px 12px #20324704}
+:is(.admin-shell,.app-shell) .page-title{padding:10px 0;margin:0}
+:is(.admin-shell,.app-shell) .page-title h1{margin-bottom:0}
+:is(.admin-shell,.app-shell) button{box-sizing:border-box;min-height:36px;padding:6px 12px;font-family:inherit;font-size:13px;line-height:22px;font-weight:600;border-radius:8px}
+:is(.admin-shell,.app-shell) button svg{width:17px;height:17px;flex-shrink:0}
+:is(.admin-shell,.app-shell) button:disabled{opacity:.5;cursor:not-allowed}
+:is(.admin-shell,.app-shell) main input:not([type=checkbox]):not([type=radio]):not([type=file]),:is(.admin-shell,.app-shell) main select{min-height:38px;padding:7px 10px;font-size:14px;line-height:22px;border-radius:8px}
+:is(.admin-shell,.app-shell) .table-tools,:is(.admin-shell,.app-shell) .row{gap:8px;flex-wrap:wrap}
+:is(.admin-shell,.app-shell) .table-tools{margin:12px 0}
+:is(.admin-shell,.app-shell) th{font-size:12px;font-weight:700;background:#f3f7fb;color:#40546a;padding:10px 12px;text-align:left}
+:is(.admin-shell,.app-shell) td{font-size:13px;padding:10px 12px;border-bottom:1px solid #e4ebf2}
+:is(.admin-shell,.app-shell) .stat-card{padding:14px 16px;border:1px solid #dbe4ed;border-radius:10px;background:#fff}
+:is(.admin-shell,.app-shell) .stat-card b{font-size:26px;line-height:1.4}
+:is(.admin-shell,.app-shell) .site-header button{min-height:40px}
+@media(max-width:760px){
+ :is(.admin-shell,.app-shell){grid-template-columns:1fr}
+ :is(.admin-shell,.app-shell)>aside{width:100%;height:auto;position:static;padding:10px;gap:8px}
+ :is(.admin-shell,.app-shell)>aside>img,:is(.admin-shell,.app-shell)>aside>small{display:none}
+ :is(.admin-shell,.app-shell)>aside>h2{font-size:20px;min-height:0}
+ :is(.admin-shell,.app-shell)>aside nav{display:flex;flex-wrap:wrap;margin:0}
+ :is(.admin-shell,.app-shell)>aside nav a{min-height:44px}
+ :is(.admin-shell .admin-workspace,.app-shell)>main{padding:10px}
+ :is(.admin-shell,.app-shell) main .panel{padding:12px}
+ :is(.admin-shell,.app-shell) button{min-height:44px}
+ :is(.admin-shell,.app-shell) .admin-profile{padding-top:8px}
+}
