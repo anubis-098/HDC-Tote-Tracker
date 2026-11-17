@@ -51,6 +51,21 @@ export function DashboardPage() {
       active = false;
     };
   }, [search, status, page, refresh, plate, from, to, storeFilter, photosPage]);
+  function exportCsv() {
+    const rows = (data?.items ?? []).filter(row => !selected.length || selected.includes(row.code));
+    const cell = (value: unknown) => '"' + String(value ?? '').replace(/^[\s]*[=+@-]/, "'$&").replaceAll('"', '""') + '"';
+    const lines = [
+      en ? ['Tote number', 'Status', 'Store code', 'Store name', 'Truck registration', 'Last updated (Asia/Bangkok)']
+        : ['หมายเลข Tote', 'สถานะ', 'รหัส Store', 'ชื่อ Store', 'ทะเบียนรถ', 'อัปเดตล่าสุด (เวลาไทย)'],
+      ...rows.map(row => [row.code, en ? row.status : t(statusLabel[row.status]), row.store_code, row.store_name, row.truck_registration, dateTime(row.updated_at)]),
+    ];
+    const url = URL.createObjectURL(new Blob(['\ufeff' + lines.map(line => line.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = selected.length ? 'tote-tracker-selected.csv' : 'tote-tracker-current-page.csv';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
   return (
     <>
       <div className="page-title">
@@ -120,6 +135,9 @@ export function DashboardPage() {
           <label>{en ? 'Updated from' : '\u0e15\u0e31\u0e49\u0e07\u0e41\u0e15\u0e48\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48'}<input type="date" value={from} max={to || undefined} onChange={e=>{setFrom(e.target.value);setPage(1);}}/></label>
           <label>{en ? 'Updated to' : '\u0e16\u0e36\u0e07\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48'}<input type="date" value={to} min={from || undefined} onChange={e=>{setTo(e.target.value);setPage(1);}}/></label>
         </div>}
+        {!photosPage && <button disabled={loading || downloading || !!error || !data?.items.length} onClick={exportCsv}>
+          <Download size={18}/>{en ? (selected.length ? `Download selected CSV (${selected.length})` : 'Download this page CSV') : (selected.length ? `ดาวน์โหลด CSV ที่เลือก (${selected.length})` : 'ดาวน์โหลด CSV หน้านี้')}
+        </button>}
         {admin && !photosPage && <div className="row">
           <button disabled={!selected.length || downloading || selected.some(code=>data?.items.find(item=>item.code===code)?.status==='AT_STORE')} onClick={async()=>{
             if(!window.confirm(en ? 'Move selected photos to Archive? They can be downloaded from Archive.' : '\u0e22\u0e49\u0e32\u0e22\u0e23\u0e39\u0e1b\u0e17\u0e35\u0e48\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e44\u0e1b Archive?'))return;
@@ -145,7 +163,7 @@ export function DashboardPage() {
         </div>
         <div className="row">
           <label className="tote-select-all"><input type="checkbox" disabled={loading || downloading || !data?.items.length} checked={!!data?.items.length && data.items.every(item=>selected.includes(item.code))} onChange={e=>setSelected(e.target.checked ? data!.items.map(item=>item.code) : [])}/>{en ? "Select Totes on this page" : "\u0e40\u0e25\u0e37\u0e2d\u0e01 Tote \u0e43\u0e19\u0e2b\u0e19\u0e49\u0e32\u0e19\u0e35\u0e49"}</label>
-          <button className="primary" disabled={loading || downloading || !selected.length} onClick={async()=>{
+          <button className="primary" hidden={!admin} disabled={loading || downloading || !selected.length} onClick={async()=>{
             setDownloading(true);setError("");
             try {
               const response=await fetch('/api/tote-photo-downloads',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({codes:selected})});

@@ -18,7 +18,7 @@ def password_matches(password, stored):
 
 def create_session(conn, response, actor_id, role):
     token = secrets.token_urlsafe(32)
-    seconds = 43200 if role == 'admin' else 30 * 86400
+    seconds = 24 * 60 * 60
     conn.execute('DELETE FROM sessions WHERE expires_at < now()')
     conn.execute('INSERT INTO sessions VALUES (%s,%s,%s,%s)', (hashlib.sha256(token.encode()).hexdigest(), actor_id, role, datetime.now(timezone.utc) + timedelta(seconds=seconds)))
     response.set_cookie(f'{role}_session', token, max_age=seconds, httponly=True, secure=settings().cookie_secure, samesite='strict', path='/')

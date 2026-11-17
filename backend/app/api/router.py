@@ -317,7 +317,7 @@ def delete_all_stores(body: dict, who=Depends(admin)):
     return {'deleted': count}
 
 @router.post('/tote-photo-downloads')
-def download_tote_photos(body: dict, who=Depends(actor)):
+def download_tote_photos(body: dict, who=Depends(admin)):
     import hashlib
     import re
     from tempfile import TemporaryFile

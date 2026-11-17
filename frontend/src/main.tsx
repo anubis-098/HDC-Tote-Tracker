@@ -11,6 +11,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { AdminPage } from "./pages/AdminPage";
 import "./styles/app.css";
 import "./styles/language.css";
+import "./styles/shared-ui.css";
 import "@fontsource/sarabun/400.css";
 import "@fontsource/sarabun/500.css";
 import "@fontsource/sarabun/600.css";

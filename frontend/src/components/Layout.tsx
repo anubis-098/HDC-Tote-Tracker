@@ -2,6 +2,7 @@ import { t, useLanguage, locale } from "../lib/i18n";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { ArrowLeft, ScanLine, LayoutDashboard, Settings } from "lucide-react";
 import { Clock } from "./Clock";
+import { ConnectionStatus } from "./ConnectionStatus";
 import { LanguageSwitch } from "../lib/i18n";
 import { useEffect, useState } from "react";
 
@@ -36,6 +37,7 @@ export function Layout({admin = false}: {admin?: boolean}) {
         </div>
         <LanguageSwitch />
         <Clock />
+        {!admin && <ConnectionStatus />}
       </header>
       {!online && (
         <div className="offline-banner" role="alert">
