@@ -22,9 +22,6 @@ export function Layout({admin = false}: {admin?: boolean}) {
   return (
     <div className={admin ? "handheld admin-workspace" : "handheld"}>
       <header className="site-header">
-        <Link className="icon-button" to="/" aria-label={t("กลับหน้าแรก")}>
-          <ArrowLeft size={20} />
-        </Link>
         <img
           src="/branding/cj-logistics.png"
           alt="CJ Logistics"

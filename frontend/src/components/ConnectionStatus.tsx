@@ -35,5 +35,5 @@ export function ConnectionStatus() {
   const labels = language === 'en'
     ? {connected:'Connected', connecting:'Reconnecting', disconnected:'Disconnected'}
     : {connected:'เชื่อมต่ออยู่', connecting:'กำลังเชื่อมต่อ', disconnected:'หลุดการเชื่อมต่อ'};
-  return <span className={'connection-status ' + state} role="status" aria-live="polite" title={labels[state]}><span className="connection-dot" aria-hidden="true"/><span className="connection-label">{labels[state]}</span></span>;
+  return <span className={'connection-status ' + state} role="status" aria-live="polite" aria-label={labels[state]} title={labels[state]}><span className="connection-dot" aria-hidden="true"/><span className="connection-label">{labels[state]}</span></span>;
 }
