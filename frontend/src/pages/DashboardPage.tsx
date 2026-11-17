@@ -163,6 +163,14 @@ export function DashboardPage() {
         </div>
         <div className="row">
           <label className="tote-select-all"><input type="checkbox" disabled={loading || downloading || !data?.items.length} checked={!!data?.items.length && data.items.every(item=>selected.includes(item.code))} onChange={e=>setSelected(e.target.checked ? data!.items.map(item=>item.code) : [])}/>{en ? "Select Totes on this page" : "\u0e40\u0e25\u0e37\u0e2d\u0e01 Tote \u0e43\u0e19\u0e2b\u0e19\u0e49\u0e32\u0e19\u0e35\u0e49"}</label>
+          {admin && photosPage && <button disabled={loading || downloading || !selected.length} onClick={async()=>{
+            setDownloading(true);setError('');
+            try {
+              const response=await fetch('/api/tote-photo-report',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({codes:selected})});
+              if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body.detail || `Download failed (${response.status})`);}
+              const url=URL.createObjectURL(await response.blob());const link=document.createElement('a');link.href=url;link.download='tote-photo-report.pdf';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+            }catch(error){setError(message(error));}finally{setDownloading(false);}
+          }}><Download size={18}/>{en ? 'Download PDF' : 'ดาวน์โหลด PDF'} ({selected.length})</button>}
           <button className="primary" hidden={!admin} disabled={loading || downloading || !selected.length} onClick={async()=>{
             setDownloading(true);setError("");
             try {

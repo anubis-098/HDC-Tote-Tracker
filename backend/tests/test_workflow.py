@@ -32,7 +32,40 @@ def register(client, code='HDC000001'):
     return response.json()
 
 
+def test_namespaced_24_hour_sessions_and_admin_scan(client):
+    cookie = client.cookies.get('hdc_tote_worker_session')
+    assert cookie
+    with connect() as conn:
+        remaining = conn.execute("SELECT extract(epoch FROM (expires_at-now())) AS seconds FROM sessions WHERE role='worker'").fetchone()['seconds']
+        assert 86300 < remaining <= 86400
+        conn.execute('INSERT INTO admins VALUES (%s,%s,%s)', (uuid4(), 'admin', password_hash('test')))
+    response = client.post('/api/admin/login', json={'username':'admin','password':'test'})
+    assert 'Max-Age=86400' in response.headers['set-cookie']
+    assert 'hdc_tote_admin_session=' in response.headers['set-cookie']
+    client.cookies.delete('hdc_tote_worker_session')
+    assert client.get('/api/actor/me').json()['role'] == 'admin'
+    register(client)
+    assert change(client,'DISPATCH',0,store_code='S001').status_code == 200
+    assert client.post('/api/admin/logout').status_code == 200
+    assert client.get('/api/actor/me').status_code == 401
+
+
+def test_pdf_report_requires_admin_and_returns_pdf(client):
+    register(client)
+    assert client.post('/api/tote-photo-report',json={'codes':['HDC000001']}).status_code == 401
+    with connect() as conn:
+        conn.execute('INSERT INTO admins VALUES (%s,%s,%s)', (uuid4(), 'admin', password_hash('test')))
+    client.post('/api/admin/login',json={'username':'admin','password':'test'})
+    assert client.post('/api/tote-photo-report',json={'codes':[]}).status_code == 422
+    report=client.post('/api/tote-photo-report',json={'codes':['HDC000001']})
+    assert report.status_code == 200
+    assert report.headers['content-type'] == 'application/pdf'
+    assert report.content.startswith(b'%PDF-')
+
+
 def change(client, action, version, code='HDC000001', **extra):
+    if action == 'DISPATCH':
+        extra.setdefault('truck_registration', 'TEST-1234')
     body = {'action': action, 'expected_version': version, 'request_id': str(uuid4()), **extra}
     return client.post(f'/api/totes/{code}/transitions', json=body)
 
@@ -68,7 +101,7 @@ def test_invalid_transitions_stale_versions_and_store_validation(client):
 
 def test_retry_request_is_idempotent(client):
     register(client)
-    body = {'action': 'DISPATCH', 'expected_version': 0, 'store_code': 'S001', 'request_id': str(uuid4())}
+    body = {'action': 'DISPATCH', 'expected_version': 0, 'store_code': 'S001', 'truck_registration': 'TEST-1234', 'request_id': str(uuid4())}
     first = client.post('/api/totes/HDC000001/transitions', json=body)
     retry = client.post('/api/totes/HDC000001/transitions', json=body)
     assert first.status_code == retry.status_code == 200
@@ -303,7 +336,7 @@ def test_delete_continues_after_image_database_outage(client, monkeypatch):
 
 def test_request_id_collision_across_totes_returns_conflict(client):
     register(client, 'HDC1'); register(client, 'HDC2')
-    body = {'action': 'DISPATCH', 'expected_version': 0, 'request_id': str(uuid4()), 'store_code': 'S001'}
+    body = {'action': 'DISPATCH', 'expected_version': 0, 'request_id': str(uuid4()), 'store_code': 'S001', 'truck_registration': 'TEST-1234'}
     cookies = dict(client.cookies)
     def send(code):
         with TestClient(app) as other:

@@ -1,0 +1,25 @@
+/* Compact administration, retaining touch targets on handheld screens. */
+.admin-shell{grid-template-columns:216px minmax(0,1fr)}
+.admin-shell .admin-sidebar{width:216px;padding:18px 12px;gap:8px;font-size:13px}
+.admin-shell .admin-sidebar h2{font-size:21px}
+.admin-shell .admin-sidebar nav{gap:4px;margin-top:10px}
+.admin-shell .admin-sidebar nav a{padding:8px 10px;min-height:40px}
+.admin-shell .admin-workspace>main{padding:16px;max-width:1280px;font-size:13px}
+.admin-shell .admin-workspace h1{font-size:23px;margin:4px 0}
+.admin-shell .admin-workspace h2{font-size:15px}
+.admin-shell .admin-workspace>main .panel{padding:16px;margin:12px 0}
+.admin-shell .form{gap:10px}
+.admin-shell .page-title{padding:10px 0}
+.admin-shell .tote-list-item{padding:10px 12px}
+.admin-shell .donut-chart{width:180px;height:180px;margin-top:8px}
+.admin-shell .donut-center strong{font-size:29px}
+.admin-shell .donut-legend button{min-height:44px;padding:7px 10px}
+@media(min-width:761px){
+ .admin-shell .admin-workspace button{min-height:36px;padding:6px 10px;font-size:13px}
+ .admin-shell .admin-workspace input:not([type=checkbox]):not([type=radio]):not([type=file]),.admin-shell .admin-workspace select{min-height:38px;padding:7px 10px;font-size:14px}
+ .admin-shell .donut-panel{display:grid;grid-template-columns:220px minmax(0,1fr);column-gap:24px;align-items:center}
+ .admin-shell .donut-panel>.row{grid-column:1/-1}
+ .admin-shell .donut-panel>.donut-caption{grid-column:1;grid-row:3}
+ .admin-shell .donut-panel>.donut-legend{grid-column:2;grid-row:2 / 4}
+}
+@media(max-width:760px){.admin-shell{grid-template-columns:1fr}.admin-shell .admin-sidebar{width:100%;padding:10px}.admin-shell .admin-workspace>main{padding:10px}.admin-shell .admin-sidebar nav a{min-height:44px}.admin-shell .admin-workspace>main .panel{padding:12px}}

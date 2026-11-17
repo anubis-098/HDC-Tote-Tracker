@@ -13,6 +13,7 @@ import "./styles/app.css";
 import "./styles/language.css";
 import "./styles/shared-ui.css";
 import "./styles/header.css";
+import "./styles/admin-compact.css";
 import "@fontsource/sarabun/400.css";
 import "@fontsource/sarabun/500.css";
 import "@fontsource/sarabun/600.css";

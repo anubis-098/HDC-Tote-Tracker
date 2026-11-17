@@ -320,6 +320,40 @@ def delete_all_stores(body: dict, who=Depends(admin)):
         count = result.rowcount
     return {'deleted': count}
 
+@router.post('/tote-photo-report')
+def download_tote_report(body: dict, who=Depends(admin)):
+    import hashlib
+    import re
+    from tempfile import TemporaryFile
+    from fastapi.responses import StreamingResponse
+    from starlette.background import BackgroundTask
+    from app.services.tote_pdf import render_tote_pdf
+    codes=body.get('codes')
+    if not isinstance(codes,list) or not 1 <= len(codes) <= 30 or any(not isinstance(code,str) or not re.fullmatch(r'HDC-?[0-9]+',code) or len(code)>100 for code in codes):
+        raise HTTPException(422,'Select between 1 and 30 Totes')
+    output=TemporaryFile()
+    try:
+        records=[]
+        with connect() as conn, connect(True) as images:
+            for code in sorted(set(codes)):
+                tote=find_tote(conn,code,shared=True)
+                rows=images.execute('SELECT slot,content,sha256,uploaded_at FROM photos WHERE tote_code=%s ORDER BY slot FOR SHARE',(code,)).fetchall()
+                for row in rows:
+                    row['content']=bytes(row['content'])
+                    if hashlib.sha256(row['content']).hexdigest()!=row['sha256']:
+                        raise HTTPException(503,f'{code}: photo integrity check failed')
+                records.append((tote,rows))
+            render_tote_pdf(output,records)
+        size=output.tell();output.seek(0)
+    except BaseException:
+        output.close()
+        raise
+    def chunks():
+        try:
+            while chunk:=output.read(65536): yield chunk
+        finally: output.close()
+    return StreamingResponse(chunks(),media_type='application/pdf',headers={'Content-Disposition':'attachment; filename="tote-photo-report.pdf"','Content-Length':str(size),'Cache-Control':'no-store'},background=BackgroundTask(output.close))
+
 @router.post('/tote-photo-downloads')
 def download_tote_photos(body: dict, who=Depends(admin)):
     import hashlib
