@@ -51,6 +51,10 @@ def worker_suggestions(q: str = Query(min_length=3, max_length=160)):
 def worker_me(who=Depends(worker)):
     return who
 
+@router.get('/actor/me')
+def actor_me(who=Depends(actor)):
+    return who
+
 @router.post('/admin/login')
 def login(body: LoginInput, request: Request, response: Response):
     now = monotonic()
@@ -82,8 +86,8 @@ def admin_me(who=Depends(admin)):
 def logout(request: Request, response: Response):
     import hashlib
     with connect() as conn:
-        conn.execute('DELETE FROM sessions WHERE token_hash=%s', (hashlib.sha256(request.cookies.get('admin_session','').encode()).hexdigest(),))
-    response.delete_cookie('admin_session', path='/')
+        conn.execute('DELETE FROM sessions WHERE token_hash=%s', (hashlib.sha256(request.cookies.get('hdc_tote_admin_session','').encode()).hexdigest(),))
+    response.delete_cookie('hdc_tote_admin_session', path='/')
     return {'ok': True}
 
 @router.get('/stores')
@@ -174,7 +178,7 @@ def list_totes(q: str = Query(default='', max_length=100), status: str | None = 
 
 
 @router.post('/totes')
-def register(body: ToteInput, who=Depends(worker)):
+def register(body: ToteInput, who=Depends(actor)):
     with connect() as conn:
         conn.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', (body.code,))
         cleanup_for_code(conn, body.code)
@@ -192,7 +196,7 @@ def get_tote(code: str, who=Depends(actor)):
 
 
 @router.post('/totes/{code}/transitions')
-def transition(code: str, body: TransitionInput, who=Depends(worker)):
+def transition(code: str, body: TransitionInput, who=Depends(actor)):
     payload = body.model_dump(mode='json')
     with connect() as conn:
         conn.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,1))', (str(body.request_id),))
@@ -228,7 +232,7 @@ def transition(code: str, body: TransitionInput, who=Depends(worker)):
 
 
 @router.put('/totes/{code}/photos/{slot}')
-def upload(code: str, slot: int, expected_version: int = Query(ge=0), file: UploadFile = File(...), who=Depends(worker)):
+def upload(code: str, slot: int, expected_version: int = Query(ge=0), file: UploadFile = File(...), who=Depends(actor)):
     if not 1 <= slot <= 6:
         raise HTTPException(422, 'Tote มีช่องรูปภาพได้ 1–6 เท่านั้น')
     content = file.file.read(8 * 1024 * 1024 + 1)
@@ -263,7 +267,7 @@ def photo(code: str, slot: int, who=Depends(actor)):
 
 
 @router.delete('/totes/{code}/photos/{slot}')
-def delete_photo(code: str, slot: int, expected_version: int = Query(ge=0), expected_photo_id: UUID = Query(), who=Depends(worker)):
+def delete_photo(code: str, slot: int, expected_version: int = Query(ge=0), expected_photo_id: UUID = Query(), who=Depends(actor)):
     with connect() as conn:
         tote = find_tote(conn, code, lock=True)
         if tote['version'] != expected_version:

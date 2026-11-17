@@ -21,10 +21,10 @@ def create_session(conn, response, actor_id, role):
     seconds = 24 * 60 * 60
     conn.execute('DELETE FROM sessions WHERE expires_at < now()')
     conn.execute('INSERT INTO sessions VALUES (%s,%s,%s,%s)', (hashlib.sha256(token.encode()).hexdigest(), actor_id, role, datetime.now(timezone.utc) + timedelta(seconds=seconds)))
-    response.set_cookie(f'{role}_session', token, max_age=seconds, httponly=True, secure=settings().cookie_secure, samesite='strict', path='/')
+    response.set_cookie(f'hdc_tote_{role}_session', token, max_age=seconds, httponly=True, secure=settings().cookie_secure, samesite='strict', path='/')
 
 def identity(request, role):
-    token = request.cookies.get(f'{role}_session', '')
+    token = request.cookies.get(f'hdc_tote_{role}_session', '')
     with connect() as conn:
         session = conn.execute('SELECT actor_id, role FROM sessions WHERE token_hash=%s AND role=%s AND expires_at>now()', (hashlib.sha256(token.encode()).hexdigest(), role)).fetchone()
         if not session:

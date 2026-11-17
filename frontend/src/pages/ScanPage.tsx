@@ -102,7 +102,7 @@ export function ScanPage() {
   }, [busy, store, truckRegistration, note]);
   useEffect(() => {
     let active = true;
-    api<Identity>("/worker/me")
+    api<Identity>("/actor/me")
       .then((user) => {
         if (!active) return;
         setIdentity(user);
