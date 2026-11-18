@@ -3,6 +3,7 @@ import { t, useLanguage, locale } from "../lib/i18n";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
+  FileSpreadsheet,
   LockKeyhole,
   Store as StoreIcon,
   LogOut,
@@ -347,12 +348,12 @@ export function AdminPage() {
             </form>
             <div className="search">
               <label><input type="checkbox" disabled={busy || !totes?.items.length} checked={!!totes?.items.length && selected.length === totes.items.length} onChange={e => setSelected(e.target.checked ? totes!.items.map(item => item.code) : [])} />{t("เลือกทั้งหมดในหน้านี้")}</label>
-              <button disabled={busy || !selected.length} onClick={() => {
+              <button className="export-button csv-download" disabled={busy || !selected.length} onClick={() => {
                 const rows = totes!.items.filter(item => selected.includes(item.code));
                 const cell = (v: unknown) => '"' + String(v ?? '').replace(/^[=+@-]/, "'$&").replaceAll('"','""') + '"';
                 const blob = new Blob(['\ufeff' + [['Tote','Status','Store'], ...rows.map(item => [item.code,item.status,item.store_code])].map(row => row.map(cell).join(',')).join('\r\n')], {type:'text/csv;charset=utf-8'});
                 const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download='selected-totes.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(url),1000);
-              }}>{t("ดาวน์โหลดที่เลือก")} ({selected.length}) CSV</button>
+              }}><FileSpreadsheet size={18} aria-hidden="true"/>{t("ดาวน์โหลดที่เลือก")} ({selected.length}) CSV</button>
               <button disabled={busy || !selected.length} onClick={async () => {
                 if (!window.confirm(t("ยืนยันลบรายการที่เลือกและภาพทั้งหมด?"))) return;
                 setBusy(true); setError('');

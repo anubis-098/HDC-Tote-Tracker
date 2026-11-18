@@ -140,6 +140,8 @@
   "CSV หน้านี้": "Export this page as CSV",
   "กำลังโหลด…": "Loading…",
   "ทะเบียนรถ": "Truck registration",
+  "เลขออเดอร์": "Order number",
+  "กรุณากรอกเลขออเดอร์": "Order number is required",
   "วันที่": "Date",
   "ไม่พบเที่ยวรถตามเงื่อนไข": "No matching trips",
   "หน้า": "Page",

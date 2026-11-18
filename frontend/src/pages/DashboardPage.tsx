@@ -1,7 +1,7 @@
 import { t, useLanguage, locale } from "../lib/i18n";
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Search, ArrowUpRight, Download } from "lucide-react";
+import { LayoutDashboard, Search, ArrowUpRight, FileText, FileSpreadsheet, Images, LoaderCircle } from "lucide-react";
 import { api, message, statusLabel, dateTime, type ToteList } from "../lib/api";
 import { ToteDonutChart } from "../components/ToteDonutChart";
 
@@ -17,6 +17,7 @@ export function DashboardPage() {
   const en = language === "en";
   const [selected,setSelected] = useState<string[]>([]);
   const [downloading,setDownloading] = useState(false);
+  const [downloadKind,setDownloadKind] = useState<"photos" | "pdf" | null>(null);
   const [data, setData] = useState<ToteList | null>(null);
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
@@ -55,9 +56,9 @@ export function DashboardPage() {
     const rows = (data?.items ?? []).filter(row => !selected.length || selected.includes(row.code));
     const cell = (value: unknown) => '"' + String(value ?? '').replace(/^[\s]*[=+@-]/, "'$&").replaceAll('"', '""') + '"';
     const lines = [
-      en ? ['Tote number', 'Status', 'Store code', 'Store name', 'Truck registration', 'Last updated (Asia/Bangkok)']
-        : ['หมายเลข Tote', 'สถานะ', 'รหัส Store', 'ชื่อ Store', 'ทะเบียนรถ', 'อัปเดตล่าสุด (เวลาไทย)'],
-      ...rows.map(row => [row.code, en ? row.status : t(statusLabel[row.status]), row.store_code, row.store_name, row.truck_registration, dateTime(row.updated_at)]),
+      en ? ['Tote number', 'Status', 'Store code', 'Store name', 'Truck registration', 'Order number', 'Last updated (Asia/Bangkok)']
+        : ['หมายเลข Tote', 'สถานะ', 'รหัส Store', 'ชื่อ Store', 'ทะเบียนรถ', 'เลขออเดอร์', 'อัปเดตล่าสุด (เวลาไทย)'],
+      ...rows.map(row => [row.code, en ? row.status : t(statusLabel[row.status]), row.store_code, row.store_name, row.truck_registration, row.order_number, dateTime(row.updated_at)]),
     ];
     const url = URL.createObjectURL(new Blob(['\ufeff' + lines.map(line => line.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a');
@@ -91,7 +92,8 @@ export function DashboardPage() {
           </div>
         )
       ))}
-      <section className="panel form">
+      <section className={`panel form tote-data-panel ${photosPage ? "photo-download-panel" : ""}`}>
+        <div className="download-filters">
         <form
           className="search"
           onSubmit={(e) => {
@@ -135,8 +137,9 @@ export function DashboardPage() {
           <label>{en ? 'Updated from' : '\u0e15\u0e31\u0e49\u0e07\u0e41\u0e15\u0e48\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48'}<input type="date" value={from} max={to || undefined} onChange={e=>{setFrom(e.target.value);setPage(1);}}/></label>
           <label>{en ? 'Updated to' : '\u0e16\u0e36\u0e07\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48'}<input type="date" value={to} min={from || undefined} onChange={e=>{setTo(e.target.value);setPage(1);}}/></label>
         </div>}
-        {!photosPage && <button disabled={loading || downloading || !!error || !data?.items.length} onClick={exportCsv}>
-          <Download size={18}/>{en ? (selected.length ? `Download selected CSV (${selected.length})` : 'Download this page CSV') : (selected.length ? `ดาวน์โหลด CSV ที่เลือก (${selected.length})` : 'ดาวน์โหลด CSV หน้านี้')}
+        </div>
+        {!photosPage && <button className="export-button csv-download" disabled={loading || downloading || !!error || !data?.items.length} onClick={exportCsv}>
+          <FileSpreadsheet size={18} aria-hidden="true"/>{en ? (selected.length ? `Download selected CSV (${selected.length})` : 'Download this page CSV') : (selected.length ? `ดาวน์โหลด CSV ที่เลือก (${selected.length})` : 'ดาวน์โหลด CSV หน้านี้')}
         </button>}
         {admin && !photosPage && <div className="row">
           <button disabled={!selected.length || downloading || selected.some(code=>data?.items.find(item=>item.code===code)?.status==='AT_STORE')} onClick={async()=>{
@@ -161,24 +164,27 @@ export function DashboardPage() {
             {t("รีเฟรชข้อมูล")}
           </button>
         </div>
-        <div className="row">
-          <label className="tote-select-all"><input type="checkbox" disabled={loading || downloading || !data?.items.length} checked={!!data?.items.length && data.items.every(item=>selected.includes(item.code))} onChange={e=>setSelected(e.target.checked ? data!.items.map(item=>item.code) : [])}/>{en ? "Select Totes on this page" : "\u0e40\u0e25\u0e37\u0e2d\u0e01 Tote \u0e43\u0e19\u0e2b\u0e19\u0e49\u0e32\u0e19\u0e35\u0e49"}</label>
-          {admin && photosPage && <button disabled={loading || downloading || !selected.length} onClick={async()=>{
-            setDownloading(true);setError('');
+        <div className="download-toolbar">
+          <div className="download-selection"><label className="tote-select-all"><input type="checkbox" disabled={loading || downloading || !data?.items.length} checked={!!data?.items.length && data.items.every(item=>selected.includes(item.code))} onChange={e=>setSelected(e.target.checked ? data!.items.map(item=>item.code) : [])}/>{en ? "Select Totes on this page" : "\u0e40\u0e25\u0e37\u0e2d\u0e01 Tote \u0e43\u0e19\u0e2b\u0e19\u0e49\u0e32\u0e19\u0e35\u0e49"}</label>
+          <span className="download-selected-count">{en ? `${selected.length} selected` : `เลือกแล้ว ${selected.length} กล่อง`}</span></div>
+          <div className="download-actions">
+          {admin && photosPage && <button className="export-button pdf-download" disabled={loading || downloading || !selected.length} onClick={async()=>{
+            setDownloading(true);setDownloadKind('pdf');setError('');
             try {
               const response=await fetch('/api/tote-photo-report',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({codes:selected})});
               if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body.detail || `Download failed (${response.status})`);}
               const url=URL.createObjectURL(await response.blob());const link=document.createElement('a');link.href=url;link.download='tote-photo-report.pdf';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
-            }catch(error){setError(message(error));}finally{setDownloading(false);}
-          }}><Download size={18}/>{en ? 'Download PDF' : 'ดาวน์โหลด PDF'} ({selected.length})</button>}
-          <button className="primary" hidden={!admin} disabled={loading || downloading || !selected.length} onClick={async()=>{
-            setDownloading(true);setError("");
+            }catch(error){setError(message(error));}finally{setDownloading(false);setDownloadKind(null);}
+          }}>{downloadKind === 'pdf' ? <LoaderCircle size={18} className="download-spinner" aria-hidden="true"/> : <FileText size={18} aria-hidden="true"/>}{downloadKind === 'pdf' ? (en ? 'Preparing PDF…' : 'กำลังเตรียม PDF…') : (en ? 'Download PDF' : 'ดาวน์โหลด PDF')}</button>}
+          <button className="primary export-button photo-download" hidden={!admin} disabled={loading || downloading || !selected.length} onClick={async()=>{
+            setDownloading(true);setDownloadKind('photos');setError("");
             try {
               const response=await fetch('/api/tote-photo-downloads',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({codes:selected})});
               if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body.detail || `Download failed (${response.status})`);}
               const blob=await response.blob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='tote-photos.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
-            }catch(error){setError(message(error));}finally{setDownloading(false);}
-          }}><Download size={18}/>{downloading ? '...' : en ? 'Download photos' : '\u0e14\u0e32\u0e27\u0e19\u0e4c\u0e42\u0e2b\u0e25\u0e14\u0e23\u0e39\u0e1b'} ({selected.length})</button>
+            }catch(error){setError(message(error));}finally{setDownloading(false);setDownloadKind(null);}
+          }}>{downloadKind === 'photos' ? <LoaderCircle size={18} className="download-spinner" aria-hidden="true"/> : <Images size={18} aria-hidden="true"/>}{downloadKind === 'photos' ? (en ? 'Preparing photos…' : 'กำลังเตรียมรูป…') : (en ? 'Download photos (ZIP)' : 'ดาวน์โหลดรูป (ZIP)')}</button>
+          </div>
         </div>
         {error && (
           <div role="alert" className="error">
@@ -204,7 +210,7 @@ export function DashboardPage() {
                   to={"/scan?code=" + tote.code}
                 >
                   <div className="row">
-                    <b>{tote.code}</b><small>{tote.truck_registration}</small>
+                    <b>{tote.code}</b><small>{tote.truck_registration}</small>{tote.order_number && <small>{t("เลขออเดอร์")}: {tote.order_number}</small>}
                     <span className={"badge " + tote.status}>
                       {t(statusLabel[tote.status])}
                     </span>

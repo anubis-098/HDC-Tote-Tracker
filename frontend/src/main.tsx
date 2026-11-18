@@ -15,6 +15,7 @@ import "./styles/shared-ui.css";
 import "./styles/header.css";
 import "./styles/admin-compact.css";
 import "./styles/admin-ui.css";
+import "./styles/downloads.css";
 import "@fontsource/sarabun/400.css";
 import "@fontsource/sarabun/500.css";
 import "@fontsource/sarabun/600.css";

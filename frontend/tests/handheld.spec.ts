@@ -17,19 +17,20 @@ test('scan, review, dispatch, return and reset on handheld', async ({ page }, te
   const now = new Date().toISOString();
   const tote = {
     code: 'HDC12', status: 'READY', store_code: null as string | null, store_name: null as string | null,
-    version: 0, updated_at: now, photos: [] as { id: string; slot: number; uploaded_at: string }[], history: [{ id: 'registered', action: 'REGISTER', store_code: null as string | null, store_name: null as string | null, worker_name: 'พนักงาน ทดสอบ', note: '', created_at: now }],
+    order_number: null as string | null,
+    version: 0, updated_at: now, photos: [] as { id: string; slot: number; uploaded_at: string }[], history: [{ id: 'registered', action: 'REGISTER', store_code: null as string | null, store_name: null as string | null, order_number: null as string | null, worker_name: 'พนักงาน ทดสอบ', note: '', created_at: now }],
   };
   const transitions: Record<string, string> = { DISPATCH: 'AT_STORE', RETURN: 'RETURNED', RESET: 'READY' };
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
-    if (path === '/api/worker/me') return route.fulfill({ json: { id: 'worker', name: 'พนักงาน ทดสอบ', role: 'worker' } });
-    if (path === '/api/stores') return route.fulfill({ json: [{ code: 'S001', name: 'Store ทดสอบ', active: true }] });
+    if (path === '/api/worker/me' || path === '/api/actor/me') return route.fulfill({ json: { id: 'worker', name: 'พนักงาน ทดสอบ', role: 'worker' } });
+    if (path === '/api/stores') return route.fulfill({ json: [{ memberships: [{group:'HLE',category:'Direct'}], code: 'S001', name: 'Store ทดสอบ', active: true }] });
     if (path.endsWith('/transitions')) {
       const body = route.request().postDataJSON();
       tote.status = transitions[body.action]; tote.version++;
-      if (body.action === 'DISPATCH') { tote.store_code = 'S001'; tote.store_name = 'Store ทดสอบ'; }
-      tote.history.unshift({ id: String(tote.version), action: body.action, store_code: tote.store_code, store_name: tote.store_name, worker_name: 'พนักงาน ทดสอบ', note: body.note, created_at: now });
-      if (body.action === 'RESET') { tote.store_code = null; tote.store_name = null; }
+      if (body.action === 'DISPATCH') { expect(body.order_number).toBe('ORDER-001'); expect(body.truck_registration).toBeUndefined(); tote.store_code = 'S001'; tote.store_name = 'Store ทดสอบ'; tote.order_number = body.order_number; }
+      tote.history.unshift({ id: String(tote.version), action: body.action, store_code: tote.store_code, store_name: tote.store_name, order_number: tote.order_number, worker_name: 'พนักงาน ทดสอบ', note: body.note, created_at: now });
+      if (body.action === 'RESET') { tote.store_code = null; tote.store_name = null; tote.order_number = null; }
       return route.fulfill({ json: tote });
     }
     if (path === '/api/totes/HDC12/photos/1') {
@@ -82,10 +83,18 @@ test('scan, review, dispatch, return and reset on handheld', async ({ page }, te
   await touch.detach();
   await page.getByRole('button', { name: 'ปิดรูป', exact: true }).click();
   await expect(viewer).toHaveCount(0);
-  await page.getByLabel('Store ปลายทาง').selectOption('S001');
+  await page.locator('.store-picker-trigger').click();
+  await page.locator('.store-picker-search input').fill('S001');
+  await page.locator('.store-picker-option').click();
+  await expect(page.getByLabel('ทะเบียนรถ', { exact: true })).toHaveJSProperty('required', false);
+  await expect(page.getByLabel('เลขออเดอร์', { exact: true })).toHaveJSProperty('required', true);
+  await page.getByRole('button', { name: 'ส่งไป Store', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('กรุณากรอกเลขออเดอร์');
+  await page.getByLabel('เลขออเดอร์', { exact: true }).fill('ORDER-001');
   await page.getByRole('button', { name: 'ส่งไป Store', exact: true }).click();
   await expect(page.getByRole('dialog').filter({ hasText: 'ตรวจสอบก่อนยืนยัน' })).toBeVisible();
   await expect(page.getByRole('dialog')).toContainText('S001 · Store ทดสอบ');
+  await expect(page.getByRole('dialog')).toContainText('ORDER-001');
   await page.getByRole('button', { name: 'ยืนยันบันทึก' }).click();
   await expect(page.locator('.success[role="status"]')).toContainText('บันทึกแล้ว · ส่งไป Store');
   await expect(scan).toHaveValue('');
@@ -207,7 +216,7 @@ test('failed dispatch retains the draft until the same request succeeds', async 
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/worker/me') return route.fulfill({ json: { id: 'worker', name: 'พนักงาน ทดสอบ', role: 'worker' } });
-    if (path === '/api/stores') return route.fulfill({ json: [{ code: 'S001', name: 'Store ทดสอบ', active: true }] });
+    if (path === '/api/stores') return route.fulfill({ json: [{ memberships: [{group:'HLE',category:'Direct'}], code: 'S001', name: 'Store ทดสอบ', active: true }] });
     if (path.endsWith('/transitions')) {
       requests.push(route.request().postDataJSON());
       if (requests.length === 1) return route.fulfill({ status: 503, json: { detail: 'กรุณาลองใหม่' } });
@@ -217,7 +226,9 @@ test('failed dispatch retains the draft until the same request succeeds', async 
     return route.fulfill({ status: 404, json: {} });
   });
   await page.goto('/scan?code=HDC9');
-  await page.getByLabel('Store ปลายทาง').selectOption('S001');
+  await page.locator('.store-picker-trigger').click();
+  await page.locator('.store-picker-search input').fill('S001');
+  await page.locator('.store-picker-option').click();
   await page.getByLabel('หมายเหตุ (ไม่บังคับ)').fill('รอบเช้า');
   await page.getByRole('button', { name: 'ส่งไป Store', exact: true }).click();
   await page.getByRole('button', { name: 'ยืนยันบันทึก' }).click();
@@ -236,12 +247,14 @@ test('scan guards a draft and blocks actions for an edited QR', async ({ page })
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname; requests.push(path);
     if (path === '/api/worker/me') return route.fulfill({ json: { id: 'worker', name: 'พนักงาน', role: 'worker' } });
-    if (path === '/api/stores') return route.fulfill({ json: [{ code: 'S001', name: 'Store ทดสอบ', active: true }] });
+    if (path === '/api/stores') return route.fulfill({ json: [{ memberships: [{group:'HLE',category:'Direct'}], code: 'S001', name: 'Store ทดสอบ', active: true }] });
     if (path === '/api/totes/HDC9') return route.fulfill({ json: { code: 'HDC9', status: 'READY', version: 0, updated_at: now, photos: [], history: [] } });
     return route.fulfill({ status: 404, json: {} });
   });
   await page.goto('/scan?code=HDC9');
-  await page.getByLabel('Store ปลายทาง').selectOption('S001');
+  await page.locator('.store-picker-trigger').click();
+  await page.locator('.store-picker-search input').fill('S001');
+  await page.locator('.store-picker-option').click();
   await page.getByLabel('หมายเหตุ (ไม่บังคับ)').fill('ยังไม่ส่ง');
   const scan = page.getByLabel('QR Code / หมายเลข Tote');
   await scan.fill('HDC10');

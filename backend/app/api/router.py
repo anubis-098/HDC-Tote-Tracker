@@ -93,12 +93,12 @@ def logout(request: Request, response: Response):
 @router.get('/stores')
 def stores(who=Depends(actor)):
     with connect() as conn:
-        return conn.execute('SELECT code,name,active FROM stores WHERE active=true AND deleted_at IS NULL ORDER BY code').fetchall()
+        return conn.execute('SELECT code,name,active,memberships FROM stores WHERE active=true AND deleted_at IS NULL ORDER BY code').fetchall()
 
 @router.get('/admin/stores')
 def admin_stores(who=Depends(admin)):
     with connect() as conn:
-        return conn.execute('SELECT code,name,active FROM stores WHERE deleted_at IS NULL ORDER BY code').fetchall()
+        return conn.execute('SELECT code,name,active,memberships FROM stores WHERE deleted_at IS NULL ORDER BY code').fetchall()
 
 @router.put('/admin/stores/{code}')
 def save_store(code: str, body: StoreInput, who=Depends(admin)):
@@ -146,7 +146,7 @@ def find_tote(conn, code, lock=False, shared=False):
 def detail(conn, code):
     tote = find_tote(conn, code, shared=True)
     tote['history'] = conn.execute(
-        'SELECT id,action,from_status,to_status,store_code,store_name,truck_registration,worker_name,note,created_at FROM tote_events WHERE tote_code=%s ORDER BY created_at DESC,id DESC', (code,)).fetchall()
+        'SELECT id,action,from_status,to_status,store_code,store_name,truck_registration,order_number,worker_name,note,created_at FROM tote_events WHERE tote_code=%s ORDER BY created_at DESC,id DESC', (code,)).fetchall()
     with connect(True) as images:
         tote['photos'] = images.execute('SELECT id,slot,byte_size,worker_name,uploaded_at FROM photos WHERE tote_code=%s ORDER BY slot', (code,)).fetchall()
     return tote
@@ -203,7 +203,9 @@ def transition(code: str, body: TransitionInput, who=Depends(actor)):
         tote = find_tote(conn, code, lock=True)
         previous = conn.execute('SELECT * FROM tote_events WHERE request_id=%s', (body.request_id,)).fetchone()
         if previous:
-            if previous['tote_code'] != code or previous['request_payload'] != payload:
+            previous_payload = {**previous['request_payload']}
+            previous_payload.setdefault('order_number', None)
+            if previous['tote_code'] != code or previous_payload != payload:
                 raise HTTPException(409, 'รหัสคำขอซ้ำแต่ข้อมูลไม่ตรงกัน')
             return detail(conn, code)
         if tote['version'] != body.expected_version:
@@ -214,20 +216,24 @@ def transition(code: str, body: TransitionInput, who=Depends(actor)):
             raise HTTPException(409, 'ไม่สามารถเปลี่ยนสถานะตามลำดับนี้ได้')
         store_code, store_name = tote['store_code'], tote['store_name']
         truck_registration = tote['truck_registration']
+        order_number = tote['order_number']
         if body.action == 'DISPATCH':
-            if not body.truck_registration or not body.truck_registration.strip():
-                raise HTTPException(422, 'Truck registration is required')
-            truck_registration = body.truck_registration.strip()
+            if not body.order_number:
+                raise HTTPException(422, 'กรุณากรอกเลขออเดอร์')
+            truck_registration = body.truck_registration or None
+            order_number = body.order_number
             store = conn.execute('SELECT * FROM stores WHERE code=%s AND active=true AND deleted_at IS NULL FOR SHARE', (body.store_code,)).fetchone()
             if not store:
                 raise HTTPException(422, 'กรุณาเลือก Store ที่เปิดใช้งาน')
             store_code, store_name = store['code'], store['name']
         elif body.store_code is not None:
             raise HTTPException(422, 'การรับกลับและล้างค่าไม่ต้องระบุ Store ใหม่')
-        conn.execute('INSERT INTO tote_events(id,tote_code,action,from_status,to_status,store_code,store_name,truck_registration,worker_name,note,request_id,request_payload) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
-                     (uuid4(), code, body.action, source, target, store_code, store_name, truck_registration, who['name'], body.note, body.request_id, Jsonb(payload)))
-        conn.execute('UPDATE totes SET status=%s,store_code=%s,store_name=%s,truck_registration=%s,version=version+1,updated_at=now() WHERE code=%s',
-                     (target, None if target == 'READY' else store_code, None if target == 'READY' else store_name, truck_registration, code))
+        elif body.order_number is not None:
+            raise HTTPException(422, 'การรับกลับและล้างค่าไม่ต้องระบุเลขออเดอร์ใหม่')
+        conn.execute('INSERT INTO tote_events(id,tote_code,action,from_status,to_status,store_code,store_name,truck_registration,order_number,worker_name,note,request_id,request_payload) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
+                     (uuid4(), code, body.action, source, target, store_code, store_name, truck_registration, order_number, who['name'], body.note, body.request_id, Jsonb(payload)))
+        conn.execute('UPDATE totes SET status=%s,store_code=%s,store_name=%s,truck_registration=%s,order_number=%s,version=version+1,updated_at=now() WHERE code=%s',
+                     (target, None if target == 'READY' else store_code, None if target == 'READY' else store_name, truck_registration, None if target == 'READY' else order_number, code))
         return detail(conn, code)
 
 

@@ -66,8 +66,45 @@ def test_pdf_report_requires_admin_and_returns_pdf(client):
 def change(client, action, version, code='HDC000001', **extra):
     if action == 'DISPATCH':
         extra.setdefault('truck_registration', 'TEST-1234')
+        extra.setdefault('order_number', 'ORDER-TEST-001')
     body = {'action': action, 'expected_version': version, 'request_id': str(uuid4()), **extra}
     return client.post(f'/api/totes/{code}/transitions', json=body)
+
+
+@pytest.mark.parametrize('registration', [None, '', '   ', '70-1234'])
+def test_order_required_and_registration_optional(client, registration):
+    register(client)
+    body = {'action': 'DISPATCH', 'expected_version': 0, 'request_id': str(uuid4()),
+            'store_code': 'S001', 'order_number': '  ORDER-001  '}
+    if registration is not None:
+        body['truck_registration'] = registration
+    result = client.post('/api/totes/HDC000001/transitions', json=body)
+    assert result.status_code == 200
+    tote = result.json()
+    assert tote['order_number'] == 'ORDER-001'
+    assert tote['truck_registration'] == (registration.strip() or None if registration else None)
+    assert tote['history'][0]['order_number'] == 'ORDER-001'
+    assert client.post('/api/totes/HDC000001/transitions', json=body).status_code == 200
+    changed = {**body, 'order_number': 'OTHER-ORDER'}
+    assert client.post('/api/totes/HDC000001/transitions', json=changed).status_code == 409
+    returned = change(client, 'RETURN', 1).json()
+    assert returned['order_number'] == 'ORDER-001'
+    reset = change(client, 'RESET', 2).json()
+    assert reset['order_number'] is None
+    assert reset['history'][0]['order_number'] == 'ORDER-001'
+    next_round = change(client, 'DISPATCH', 3, store_code='S002', order_number='ORDER-002', truck_registration=None).json()
+    assert next_round['order_number'] == 'ORDER-002'
+    assert next_round['truck_registration'] is None
+
+
+@pytest.mark.parametrize('order', [None, '', '   ', 'x' * 81])
+def test_dispatch_rejects_missing_or_invalid_order(client, order):
+    register(client)
+    body = {'action': 'DISPATCH', 'expected_version': 0, 'request_id': str(uuid4()), 'store_code': 'S001'}
+    if order is not None:
+        body['order_number'] = order
+    assert client.post('/api/totes/HDC000001/transitions', json=body).status_code == 422
+    assert client.get('/api/totes/HDC000001').json()['status'] == 'READY'
 
 
 def test_roundtrip_retains_store_history_and_new_cycle(client):
@@ -101,7 +138,7 @@ def test_invalid_transitions_stale_versions_and_store_validation(client):
 
 def test_retry_request_is_idempotent(client):
     register(client)
-    body = {'action': 'DISPATCH', 'expected_version': 0, 'store_code': 'S001', 'truck_registration': 'TEST-1234', 'request_id': str(uuid4())}
+    body = {'action': 'DISPATCH', 'expected_version': 0, 'store_code': 'S001', 'truck_registration': 'TEST-1234', 'order_number': 'ORDER-TEST-001', 'request_id': str(uuid4())}
     first = client.post('/api/totes/HDC000001/transitions', json=body)
     retry = client.post('/api/totes/HDC000001/transitions', json=body)
     assert first.status_code == retry.status_code == 200
@@ -336,7 +373,7 @@ def test_delete_continues_after_image_database_outage(client, monkeypatch):
 
 def test_request_id_collision_across_totes_returns_conflict(client):
     register(client, 'HDC1'); register(client, 'HDC2')
-    body = {'action': 'DISPATCH', 'expected_version': 0, 'request_id': str(uuid4()), 'store_code': 'S001', 'truck_registration': 'TEST-1234'}
+    body = {'action': 'DISPATCH', 'expected_version': 0, 'request_id': str(uuid4()), 'store_code': 'S001', 'truck_registration': 'TEST-1234', 'order_number': 'ORDER-TEST-001'}
     cookies = dict(client.cookies)
     def send(code):
         with TestClient(app) as other:
