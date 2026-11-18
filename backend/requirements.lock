@@ -28,3 +28,8 @@ websockets==17.4
 # Excel Store import
 openpyxl==3.1.5
 et_xmlfile==2.0.0
+
+# Native selectable PDF text and Thai shaping
+reportlab[shaping]==4.5.1
+charset-normalizer==3.5.2
+uharfbuzz==0.57.0
