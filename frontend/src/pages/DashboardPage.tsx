@@ -1,7 +1,7 @@
 import { t, useLanguage, locale } from "../lib/i18n";
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Search, ArrowUpRight, FileText, FileSpreadsheet, Images, LoaderCircle } from "lucide-react";
+import { LayoutDashboard, Search, ArrowUpRight, FileImage, FileSpreadsheet, Images, LoaderCircle } from "lucide-react";
 import { api, message, statusLabel, dateTime, type ToteList } from "../lib/api";
 import { ToteDonutChart } from "../components/ToteDonutChart";
 
@@ -168,14 +168,14 @@ export function DashboardPage() {
           <div className="download-selection"><label className="tote-select-all"><input type="checkbox" disabled={loading || downloading || !data?.items.length} checked={!!data?.items.length && data.items.every(item=>selected.includes(item.code))} onChange={e=>setSelected(e.target.checked ? data!.items.map(item=>item.code) : [])}/>{en ? "Select Totes on this page" : "\u0e40\u0e25\u0e37\u0e2d\u0e01 Tote \u0e43\u0e19\u0e2b\u0e19\u0e49\u0e32\u0e19\u0e35\u0e49"}</label>
           <span className="download-selected-count">{en ? `${selected.length} selected` : `เลือกแล้ว ${selected.length} กล่อง`}</span></div>
           <div className="download-actions">
-          {admin && photosPage && <button className="export-button pdf-download" disabled={loading || downloading || !selected.length} onClick={async()=>{
+          {admin && <button className="export-button pdf-download" disabled={loading || downloading || !selected.length} onClick={async()=>{
             setDownloading(true);setDownloadKind('pdf');setError('');
             try {
               const response=await fetch('/api/tote-photo-report',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({codes:selected})});
               if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body.detail || `Download failed (${response.status})`);}
               const url=URL.createObjectURL(await response.blob());const link=document.createElement('a');link.href=url;link.download='tote-photo-report.pdf';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
             }catch(error){setError(message(error));}finally{setDownloading(false);setDownloadKind(null);}
-          }}>{downloadKind === 'pdf' ? <LoaderCircle size={18} className="download-spinner" aria-hidden="true"/> : <FileText size={18} aria-hidden="true"/>}{downloadKind === 'pdf' ? (en ? 'Preparing PDF…' : 'กำลังเตรียม PDF…') : (en ? 'Download PDF' : 'ดาวน์โหลด PDF')}</button>}
+          }}>{downloadKind === 'pdf' ? <LoaderCircle size={18} className="download-spinner" aria-hidden="true"/> : <FileImage size={18} aria-hidden="true"/>}{downloadKind === 'pdf' ? (en ? 'Preparing PDF…' : 'กำลังเตรียม PDF…') : (en ? 'Download PDF' : 'ดาวน์โหลด PDF')}</button>}
           <button className="primary export-button photo-download" hidden={!admin} disabled={loading || downloading || !selected.length} onClick={async()=>{
             setDownloading(true);setDownloadKind('photos');setError("");
             try {
@@ -186,6 +186,7 @@ export function DashboardPage() {
           }}>{downloadKind === 'photos' ? <LoaderCircle size={18} className="download-spinner" aria-hidden="true"/> : <Images size={18} aria-hidden="true"/>}{downloadKind === 'photos' ? (en ? 'Preparing photos…' : 'กำลังเตรียมรูป…') : (en ? 'Download photos (ZIP)' : 'ดาวน์โหลดรูป (ZIP)')}</button>
           </div>
         </div>
+        {admin && <small className="download-report-hint"><FileImage size={15} aria-hidden="true"/>{en ? 'PDF: landscape A4 · 6 photos per page · separate page for each Tote' : 'PDF แนวนอน A4 · 6 ภาพต่อหน้า · แยกหน้าตาม Tote'}</small>}
         {error && (
           <div role="alert" className="error">
             {t(error)}

@@ -18,6 +18,8 @@ button.pdf-download:hover:not(:disabled) { background: #eaf5fc; border-color: #0
 button.photo-download:hover:not(:disabled) { background: #005583; }
 button.csv-download:hover:not(:disabled) { background: #e1f1e8; }
 .download-spinner { animation: download-spin 1s linear infinite; }
+.download-report-hint { display: flex; align-items: center; gap: 6px; color: #60768a; font-size: 12px; }
+.download-report-hint svg { flex-shrink: 0; }
 @keyframes download-spin { to { transform: rotate(360deg); } }
 @media (max-width: 760px) {
   .download-filters { grid-template-columns: minmax(0, 1fr) minmax(110px, 1fr); }

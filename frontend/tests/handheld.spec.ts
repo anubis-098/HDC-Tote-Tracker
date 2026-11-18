@@ -215,7 +215,7 @@ test('failed dispatch retains the draft until the same request succeeds', async 
   const requests: unknown[] = [];
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
-    if (path === '/api/worker/me') return route.fulfill({ json: { id: 'worker', name: 'พนักงาน ทดสอบ', role: 'worker' } });
+    if (path === '/api/worker/me' || path === '/api/actor/me') return route.fulfill({ json: { id: 'worker', name: 'พนักงาน ทดสอบ', role: 'worker' } });
     if (path === '/api/stores') return route.fulfill({ json: [{ memberships: [{group:'HLE',category:'Direct'}], code: 'S001', name: 'Store ทดสอบ', active: true }] });
     if (path.endsWith('/transitions')) {
       requests.push(route.request().postDataJSON());
@@ -229,6 +229,7 @@ test('failed dispatch retains the draft until the same request succeeds', async 
   await page.locator('.store-picker-trigger').click();
   await page.locator('.store-picker-search input').fill('S001');
   await page.locator('.store-picker-option').click();
+  await page.getByLabel("\u0e40\u0e25\u0e02\u0e2d\u0e2d\u0e40\u0e14\u0e2d\u0e23\u0e4c", {exact:true}).fill("ORDER-RETRY");
   await page.getByLabel('หมายเหตุ (ไม่บังคับ)').fill('รอบเช้า');
   await page.getByRole('button', { name: 'ส่งไป Store', exact: true }).click();
   await page.getByRole('button', { name: 'ยืนยันบันทึก' }).click();
@@ -238,7 +239,7 @@ test('failed dispatch retains the draft until the same request succeeds', async 
   await page.getByRole('button', { name: 'ยืนยันบันทึก' }).click();
   await expect(page.getByLabel('QR Code / หมายเลข Tote')).toHaveValue('');
   await expect(page.getByRole('heading', { name: 'พร้อมรับการสแกน' })).toBeVisible();
-  expect(requests).toHaveLength(2); expect(requests[0]).toEqual(requests[1]);
+  expect(requests[0]).toMatchObject({order_number:'ORDER-RETRY'}); expect(requests).toHaveLength(2); expect(requests[0]).toEqual(requests[1]);
 });
 
 test('scan guards a draft and blocks actions for an edited QR', async ({ page }) => {
@@ -246,7 +247,7 @@ test('scan guards a draft and blocks actions for an edited QR', async ({ page })
   const requests: string[] = [];
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname; requests.push(path);
-    if (path === '/api/worker/me') return route.fulfill({ json: { id: 'worker', name: 'พนักงาน', role: 'worker' } });
+    if (path === '/api/worker/me' || path === '/api/actor/me') return route.fulfill({ json: { id: 'worker', name: 'พนักงาน', role: 'worker' } });
     if (path === '/api/stores') return route.fulfill({ json: [{ memberships: [{group:'HLE',category:'Direct'}], code: 'S001', name: 'Store ทดสอบ', active: true }] });
     if (path === '/api/totes/HDC9') return route.fulfill({ json: { code: 'HDC9', status: 'READY', version: 0, updated_at: now, photos: [], history: [] } });
     return route.fulfill({ status: 404, json: {} });
