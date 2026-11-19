@@ -169,7 +169,7 @@ def list_totes(q: str = Query(default='', max_length=100), status: str | None = 
             raise HTTPException(422, 'Invalid date')
         if start and end and start > end:
             raise HTTPException(422, 'Start date must not exceed end date')
-        condition += " AND strpos(lower(coalesce(truck_registration,'')),lower(%s))>0 AND strpos(lower(coalesce(store_code,'')),lower(%s))>0 AND (%s::date IS NULL OR updated_at >= (%s::date::timestamp AT TIME ZONE 'Asia/Bangkok')) AND (%s::date IS NULL OR updated_at < ((%s::date+1)::timestamp AT TIME ZONE 'Asia/Bangkok'))"
+        condition += " AND strpos(lower(coalesce(truck_registration,'')),lower(%s))>0 AND strpos(lower(concat_ws(' ',store_code,store_name)),lower(%s))>0 AND (%s::date IS NULL OR updated_at >= (%s::date::timestamp AT TIME ZONE 'Asia/Bangkok')) AND (%s::date IS NULL OR updated_at < ((%s::date+1)::timestamp AT TIME ZONE 'Asia/Bangkok'))"
         params = (*params, plate.strip(), store.strip(), start,start,end,end)
         total = conn.execute('SELECT count(*) AS n FROM totes'  + condition, params).fetchone()['n']
         items = conn.execute('SELECT * FROM totes' + condition + ' ORDER BY updated_at DESC,code LIMIT 30 OFFSET %s', (*params, (page-1)*30)).fetchall()
@@ -205,6 +205,7 @@ def transition(code: str, body: TransitionInput, who=Depends(actor)):
         if previous:
             previous_payload = {**previous['request_payload']}
             previous_payload.setdefault('order_number', None)
+            previous_payload.setdefault('store_name', None)
             if previous['tote_code'] != code or previous_payload != payload:
                 raise HTTPException(409, 'รหัสคำขอซ้ำแต่ข้อมูลไม่ตรงกัน')
             return detail(conn, code)
@@ -219,17 +220,22 @@ def transition(code: str, body: TransitionInput, who=Depends(actor)):
         order_number = tote['order_number']
         if body.action == 'DISPATCH':
             if not body.order_number:
-                raise HTTPException(422, 'กรุณากรอกเลขออเดอร์')
+                raise HTTPException(422, 'กรุณากรอก Order/oLPN')
             truck_registration = body.truck_registration or None
             order_number = body.order_number
-            store = conn.execute('SELECT * FROM stores WHERE code=%s AND active=true AND deleted_at IS NULL FOR SHARE', (body.store_code,)).fetchone()
-            if not store:
-                raise HTTPException(422, 'กรุณาเลือก Store ที่เปิดใช้งาน')
-            store_code, store_name = store['code'], store['name']
-        elif body.store_code is not None:
+            if body.store_code:
+                if body.store_name:
+                    raise HTTPException(422, 'Provide either store_code or store_name')
+                store = conn.execute('SELECT * FROM stores WHERE code=%s AND active=true AND deleted_at IS NULL FOR SHARE', (body.store_code,)).fetchone()
+                if not store:
+                    raise HTTPException(422, 'กรุณาเลือก Store ที่เปิดใช้งาน')
+                store_code, store_name = store['code'], store['name']
+            else:
+                store_code, store_name = None, body.store_name or None
+        elif body.store_code is not None or body.store_name is not None:
             raise HTTPException(422, 'การรับกลับและล้างค่าไม่ต้องระบุ Store ใหม่')
         elif body.order_number is not None:
-            raise HTTPException(422, 'การรับกลับและล้างค่าไม่ต้องระบุเลขออเดอร์ใหม่')
+            raise HTTPException(422, 'การรับกลับและล้างค่าไม่ต้องระบุ Order/oLPN ใหม่')
         conn.execute('INSERT INTO tote_events(id,tote_code,action,from_status,to_status,store_code,store_name,truck_registration,order_number,worker_name,note,request_id,request_payload) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
                      (uuid4(), code, body.action, source, target, store_code, store_name, truck_registration, order_number, who['name'], body.note, body.request_id, Jsonb(payload)))
         conn.execute('UPDATE totes SET status=%s,store_code=%s,store_name=%s,truck_registration=%s,order_number=%s,version=version+1,updated_at=now() WHERE code=%s',

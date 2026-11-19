@@ -28,7 +28,7 @@ test('scan, review, dispatch, return and reset on handheld', async ({ page }, te
     if (path.endsWith('/transitions')) {
       const body = route.request().postDataJSON();
       tote.status = transitions[body.action]; tote.version++;
-      if (body.action === 'DISPATCH') { expect(body.order_number).toBe('ORDER-001'); expect(body.truck_registration).toBeUndefined(); tote.store_code = 'S001'; tote.store_name = 'Store ทดสอบ'; tote.order_number = body.order_number; }
+      if (body.action === 'DISPATCH') { expect(body.order_number).toBe('ORDER-001'); expect(body.truck_registration).toBeUndefined(); expect(body.store_code).toBeUndefined(); expect(body.store_name).toBe('S001 · Store ทดสอบ'); tote.store_code = null; tote.store_name = body.store_name; tote.order_number = body.order_number; }
       tote.history.unshift({ id: String(tote.version), action: body.action, store_code: tote.store_code, store_name: tote.store_name, order_number: tote.order_number, worker_name: 'พนักงาน ทดสอบ', note: body.note, created_at: now });
       if (body.action === 'RESET') { tote.store_code = null; tote.store_name = null; tote.order_number = null; }
       return route.fulfill({ json: tote });
@@ -83,14 +83,12 @@ test('scan, review, dispatch, return and reset on handheld', async ({ page }, te
   await touch.detach();
   await page.getByRole('button', { name: 'ปิดรูป', exact: true }).click();
   await expect(viewer).toHaveCount(0);
-  await page.locator('.store-picker-trigger').click();
-  await page.locator('.store-picker-search input').fill('S001');
-  await page.locator('.store-picker-option').click();
+  await page.getByLabel('Store (ไม่บังคับ)', { exact: true }).fill('S001 · Store ทดสอบ');
   await expect(page.getByLabel('ทะเบียนรถ', { exact: true })).toHaveJSProperty('required', false);
-  await expect(page.getByLabel('เลขออเดอร์', { exact: true })).toHaveJSProperty('required', true);
+  await expect(page.getByLabel('Order/oLPN', { exact: true })).toHaveJSProperty('required', true);
   await page.getByRole('button', { name: 'ส่งไป Store', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('กรุณากรอกเลขออเดอร์');
-  await page.getByLabel('เลขออเดอร์', { exact: true }).fill('ORDER-001');
+  await expect(page.getByRole('alert')).toContainText('กรุณากรอก Order/oLPN');
+  await page.getByLabel('Order/oLPN', { exact: true }).fill('ORDER-001');
   await page.getByRole('button', { name: 'ส่งไป Store', exact: true }).click();
   await expect(page.getByRole('dialog').filter({ hasText: 'ตรวจสอบก่อนยืนยัน' })).toBeVisible();
   await expect(page.getByRole('dialog')).toContainText('S001 · Store ทดสอบ');
@@ -226,10 +224,8 @@ test('failed dispatch retains the draft until the same request succeeds', async 
     return route.fulfill({ status: 404, json: {} });
   });
   await page.goto('/scan?code=HDC9');
-  await page.locator('.store-picker-trigger').click();
-  await page.locator('.store-picker-search input').fill('S001');
-  await page.locator('.store-picker-option').click();
-  await page.getByLabel("\u0e40\u0e25\u0e02\u0e2d\u0e2d\u0e40\u0e14\u0e2d\u0e23\u0e4c", {exact:true}).fill("ORDER-RETRY");
+  await page.getByLabel('Store (ไม่บังคับ)', { exact: true }).fill('S001 · Store ทดสอบ');
+  await page.getByLabel("Order/oLPN", {exact:true}).fill("ORDER-RETRY");
   await page.getByLabel('หมายเหตุ (ไม่บังคับ)').fill('รอบเช้า');
   await page.getByRole('button', { name: 'ส่งไป Store', exact: true }).click();
   await page.getByRole('button', { name: 'ยืนยันบันทึก' }).click();
@@ -253,9 +249,7 @@ test('scan guards a draft and blocks actions for an edited QR', async ({ page })
     return route.fulfill({ status: 404, json: {} });
   });
   await page.goto('/scan?code=HDC9');
-  await page.locator('.store-picker-trigger').click();
-  await page.locator('.store-picker-search input').fill('S001');
-  await page.locator('.store-picker-option').click();
+  await page.getByLabel('Store (ไม่บังคับ)', { exact: true }).fill('S001 · Store ทดสอบ');
   await page.getByLabel('หมายเหตุ (ไม่บังคับ)').fill('ยังไม่ส่ง');
   const scan = page.getByLabel('QR Code / หมายเลข Tote');
   await scan.fill('HDC10');

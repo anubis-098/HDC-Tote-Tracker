@@ -1,4 +1,3 @@
-import { StorePicker, useStoreRefresh } from "../components/StorePicker";
 import { t, useLanguage, locale } from "../lib/i18n";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -28,7 +27,6 @@ import {
   actionLabel,
   dateTime,
   type Tote,
-  type Store,
   type Identity,
   type Action,
 } from "../lib/api";
@@ -37,7 +35,7 @@ interface Review {
   code: string;
   action: Action;
   expected_version: number;
-  store_code?: string;
+  store_name?: string;
   truck_registration?: string;
   order_number?: string;
   note: string;
@@ -57,8 +55,6 @@ export function ScanPage() {
   const [code, setCode] = useState(initial.current);
   const [tote, setTote] = useState<Tote | null>(null);
   const [unknown, setUnknown] = useState("");
-  const [stores, setStores] = useState<Store[]>([]);
-  useStoreRefresh(setStores);
   const [truckRegistration,setTruckRegistration] = useState("");
   const [orderNumber, setOrderNumber] = useState("");
   const [store, setStore] = useState("");
@@ -117,13 +113,6 @@ export function ScanPage() {
         if (!active) return;
         if (error instanceof ApiError && error.status === 401) navigate("/");
         else setError(message(error));
-      });
-    api<Store[]>("/stores")
-      .then((rows) => {
-        if (active) setStores(rows);
-      })
-      .catch((error) => {
-        if (active) setError(message(error));
       });
     return () => {
       active = false;
@@ -225,25 +214,18 @@ export function ScanPage() {
         : tote.status === "AT_STORE"
           ? "RETURN"
           : "RESET";
-    const selected = stores.find((item) => item.code === store);
-    if (action === "DISPATCH" && !selected) {
-      setError(t("กรุณาเลือก Store ปลายทาง"));
-      return;
-    }
     setError("");
-    if(action === "DISPATCH" && !orderNumber.trim()){setError(t("กรุณากรอกเลขออเดอร์"));return;}
+    if(action === "DISPATCH" && !orderNumber.trim()){setError(t("กรุณากรอก Order/oLPN"));return;}
     setReview({
       code: tote.code,
       action,
       expected_version: tote.version,
-      store_code: action === "DISPATCH" ? store : undefined,
+      store_name: action === "DISPATCH" ? store.trim() || undefined : undefined,
       truck_registration: action === "DISPATCH" ? truckRegistration.trim() || undefined : undefined,
       order_number: action === "DISPATCH" ? orderNumber.trim() : undefined,
       note: note.trim(),
       request_id: requestId(),
-      destination: selected
-        ? `${selected.code} · ${selected.name}`
-        : `${tote.store_code} · ${tote.store_name}`,
+      destination: action === "DISPATCH" ? store.trim() || t("ไม่ระบุ Store") : [tote.store_code, tote.store_name].filter(Boolean).join(" · ") || t("ไม่ระบุ Store"),
     });
   }
   async function confirm() {
@@ -442,9 +424,7 @@ export function ScanPage() {
                   : t("Store ปัจจุบัน")}
               </small>
               <b>
-                {tote.store_code
-                  ? `${tote.store_code} · ${tote.store_name}`
-                  : t("อยู่ที่ HDC · พร้อมส่งรอบใหม่")}
+                {tote.status === "READY" ? t("อยู่ที่ HDC · พร้อมส่งรอบใหม่") : [tote.store_code, tote.store_name].filter(Boolean).join(" · ") || t("ไม่ระบุ Store")}
               </b>
             </div>
             <small>
@@ -466,9 +446,9 @@ export function ScanPage() {
               {t("ปรับสถานะ Tote")}
             </h2>
             {tote.status === "READY" ? (
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}><StorePicker stores={stores} value={store} onChange={setStore} disabled={busy} />
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}><label>{t("Store (ไม่บังคับ)")}<input maxLength={160} value={store} onChange={e => setStore(e.target.value)} disabled={busy} placeholder={t("พิมพ์ชื่อหรือรหัส Store")} /></label>
               <label>{t("ทะเบียนรถ")}<input maxLength={40} disabled={busy} value={truckRegistration} onChange={e=>setTruckRegistration(e.target.value)}/></label>
-              <label>{t("เลขออเดอร์")}<input required maxLength={80} disabled={busy} value={orderNumber} onChange={e=>setOrderNumber(e.target.value)}/></label></div>
+              <label>{t("Order/oLPN")}<input required maxLength={80} disabled={busy} value={orderNumber} onChange={e=>setOrderNumber(e.target.value)}/></label></div>
             ) : (
               <div className="notice">
                 {tote.status === "AT_STORE"
@@ -616,13 +596,13 @@ export function ScanPage() {
               {tote.history.map((event) => (
                 <li key={event.id}>
                   <b>{t(actionLabel[event.action])}</b>
-                  {event.store_code && (
+                  {(event.store_code || event.store_name) && (
                     <p>
-                      {event.store_code} · {event.store_name}
+                      {[event.store_code, event.store_name].filter(Boolean).join(" · ")}
                     </p>
                   )}
                   {event.truck_registration && <p>{event.truck_registration}</p>}
-                  {event.order_number && <p>{t("เลขออเดอร์")}: {event.order_number}</p>}
+                  {event.order_number && <p>{t("Order/oLPN")}: {event.order_number}</p>}
                   {event.note && <p className="note">{event.note}</p>}
                   <small>
                     {dateTime(event.created_at)} · {event.worker_name}
@@ -634,7 +614,7 @@ export function ScanPage() {
           <div className="action-bar">
             <button
               className="primary"
-              disabled={editingDisabled || (tote.status === "READY" && !store)}
+              disabled={editingDisabled}
               onClick={prepare}
             >
               {tote.status === "READY"
@@ -670,7 +650,7 @@ export function ScanPage() {
               <p>{t(actionLabel[review.action])}</p>
               <div className="notice">{review.destination}</div>
               <p>{review.truck_registration}</p>
-              {review.order_number && <p>{t("เลขออเดอร์")}: {review.order_number}</p>}
+              {review.order_number && <p>{t("Order/oLPN")}: {review.order_number}</p>}
               {review.note && <p>{review.note}</p>}
               {review.action === "RESET" && (
                 <small>{t("ล้างเฉพาะปลายทาง ประวัติและรูปยังอยู่")}</small>

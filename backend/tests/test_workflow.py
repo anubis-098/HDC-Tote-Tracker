@@ -386,3 +386,37 @@ def test_request_id_collision_across_totes_returns_conflict(client):
 def test_search_treats_wildcards_as_literal_text(client):
     register(client)
     assert client.get('/api/totes', params={'q': '%'}).json()['total'] == 0
+
+
+@pytest.mark.parametrize('store_name', [None, '', '   ', '  สาขาทดสอบ / Free text store  '])
+def test_optional_free_text_store_roundtrip(client, store_name):
+    register(client)
+    with connect() as conn:
+        conn.execute('DELETE FROM stores')
+    body = {'action': 'DISPATCH', 'expected_version': 0, 'request_id': str(uuid4()),
+            'order_number': 'OLPN-001', 'store_name': store_name}
+    sent = client.post('/api/totes/HDC000001/transitions', json=body)
+    assert sent.status_code == 200, sent.text
+    expected = (store_name or '').strip() or None
+    assert sent.json()['store_code'] is None
+    assert sent.json()['store_name'] == expected
+    assert sent.json()['history'][0]['store_name'] == expected
+    assert client.post('/api/totes/HDC000001/transitions', json=body).status_code == 200
+    assert change(client, 'RETURN', 1, store_name='other').status_code == 422
+    returned = change(client, 'RETURN', 1)
+    assert returned.status_code == 200
+    assert returned.json()['store_name'] == expected
+    reset = change(client, 'RESET', 2)
+    assert reset.status_code == 200
+    assert reset.json()['store_name'] is None
+    assert reset.json()['history'][0]['store_name'] == expected
+
+
+def test_retry_legacy_payload_without_store_name(client):
+    register(client)
+    request_id = str(uuid4())
+    response = change(client, 'DISPATCH', 0, store_code='S001', request_id=request_id)
+    assert response.status_code == 200
+    with connect() as conn:
+        conn.execute("UPDATE tote_events SET request_payload=request_payload-'store_name' WHERE request_id=%s", (request_id,))
+    assert change(client, 'DISPATCH', 0, store_code='S001', request_id=request_id).status_code == 200

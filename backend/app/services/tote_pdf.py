@@ -82,8 +82,9 @@ def render_tote_pdf(output, records):
         top = height-74
         codes = wrap_text(f"Tote: {tote['code']}", 365, size=11, font=BOLD)
         registration = wrap_text(f"ทะเบียนรถ: {tote.get('truck_registration') or '-'}", 265)
-        orders = wrap_text(f"Order No.: {tote.get('order_number') or '-'}", width-380)
-        stores = wrap_text(f"Store: {tote.get('store_code') or '-'} · {tote.get('store_name') or '-'}", width-80)
+        orders = wrap_text(f"Order/oLPN: {tote.get('order_number') or '-'}", width-380)
+        store_label = " · ".join(str(value) for value in (tote.get("store_code"), tote.get("store_name")) if value) or "-"
+        stores = wrap_text(f"Store: {store_label}", width-80)
         first_y = top-18
         details_y = first_y-(len(codes)-1)*13-20
         store_y = details_y-max(len(registration),len(orders))*12-6

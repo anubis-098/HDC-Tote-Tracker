@@ -56,8 +56,8 @@ export function DashboardPage() {
     const rows = (data?.items ?? []).filter(row => !selected.length || selected.includes(row.code));
     const cell = (value: unknown) => '"' + String(value ?? '').replace(/^[\s]*[=+@-]/, "'$&").replaceAll('"', '""') + '"';
     const lines = [
-      en ? ['Tote number', 'Status', 'Store code', 'Store name', 'Truck registration', 'Order number', 'Last updated (Asia/Bangkok)']
-        : ['หมายเลข Tote', 'สถานะ', 'รหัส Store', 'ชื่อ Store', 'ทะเบียนรถ', 'เลขออเดอร์', 'อัปเดตล่าสุด (เวลาไทย)'],
+      en ? ['Tote number', 'Status', 'Store code', 'Store name', 'Truck registration', 'Order/oLPN', 'Last updated (Asia/Bangkok)']
+        : ['หมายเลข Tote', 'สถานะ', 'รหัส Store', 'ชื่อ Store', 'ทะเบียนรถ', 'Order/oLPN', 'อัปเดตล่าสุด (เวลาไทย)'],
       ...rows.map(row => [row.code, en ? row.status : t(statusLabel[row.status]), row.store_code, row.store_name, row.truck_registration, row.order_number, dateTime(row.updated_at)]),
     ];
     const url = URL.createObjectURL(new Blob(['\ufeff' + lines.map(line => line.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
@@ -211,15 +211,15 @@ export function DashboardPage() {
                   to={"/scan?code=" + tote.code}
                 >
                   <div className="row">
-                    <b>{tote.code}</b><small>{tote.truck_registration}</small>{tote.order_number && <small>{t("เลขออเดอร์")}: {tote.order_number}</small>}
+                    <b>{tote.code}</b><small>{tote.truck_registration}</small>{tote.order_number && <small>{t("Order/oLPN")}: {tote.order_number}</small>}
                     <span className={"badge " + tote.status}>
                       {t(statusLabel[tote.status])}
                     </span>
                   </div>
                   <p>
-                    {tote.store_code
-                      ? `${tote.store_code} · ${tote.store_name}`
-                      : t("อยู่ที่ HDC")}
+                    {(tote.store_code || tote.store_name)
+                      ? [tote.store_code, tote.store_name].filter(Boolean).join(" · ")
+                      : tote.status === "READY" ? t("อยู่ที่ HDC") : t("ไม่ระบุ Store")}
                   </p>
                   <div className="row">
                     <small>{dateTime(tote.updated_at)}</small>

@@ -22,11 +22,11 @@ def test_photo_summary_has_separate_tote_pages_and_all_six_images():
     reader=PdfReader(BytesIO(pdf))
     assert len(reader.pages)==2
     first=reader.pages[0].extract_text()
-    assert 'Order No.: ORDER-2026-000123' in first
+    assert 'Order/oLPN: ORDER-2026-000123' in first
     assert 'HDC000001' in first and '70-1234' in first
     assert 'ทะเบียนรถ' in first and 'กรุงเทพมหานคร' in first
     assert 'Store ทดสอบสาขาสุขุมวิท' in first
-    assert 'Order No.: -' in reader.pages[1].extract_text()
+    assert 'Order/oLPN: -' in reader.pages[1].extract_text()
     assert len(reader.pages[0].images)==7
     assert len(reader.pages[1].images)==1
     for page in reader.pages:

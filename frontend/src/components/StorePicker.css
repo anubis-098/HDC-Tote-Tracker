@@ -25,3 +25,10 @@
 .store-picker-option small { display: block; margin-top: 3px; font-size: 11px; color: #60768a; }
 .store-picker .store-picker-option[aria-pressed="true"], .store-picker .store-picker-option:hover { background: #edf7ff; }
 .store-picker-count, .store-picker-empty { display: block; margin: 0; padding: 10px; font-size: 12px; color: #60768a; }
+
+.store-picker .store-picker-panel { position: fixed; inset: 0; margin: auto; width: min(680px, calc(100vw - 24px)); height: min(720px, 85dvh); max-height: calc(100dvh - 24px); max-width: none; padding: 0; border-radius: 14px; box-shadow: 0 20px 70px #10283d55; }
+.store-picker-panel[open] { display: flex; flex-direction: column; }
+.store-picker-panel::backdrop { background: #10283d99; }
+.store-picker-title { margin: 0; padding: 16px 18px 8px; font-size: 20px; color: #005b8d; }
+.store-picker-panel .store-picker-search { flex-shrink: 0; }
+.store-picker-panel .store-picker-list { flex: 1; min-height: 0; max-height: none; padding: 10px; }
